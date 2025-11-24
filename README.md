@@ -2,6 +2,8 @@
 
 LivePic turns a single portrait into an interactive, gaze‑tracking sprite and a reusable `<live-pic>` web component.
 
+![LivePic demo](./Showcase.gif)
+
 ## Use the `<live-pic>` web component
 
 - Install the package (for bundlers / ESM import):
