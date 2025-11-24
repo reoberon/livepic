@@ -1,0 +1,67 @@
+{
+  "name": "livepic",
+  "version": "0.0.0-development",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "reoberon",
+  "license": "MIT",
+  "description": "Gaze-tracking portrait sprite web component with a CLI to generate your own sprite sheets",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reoberon/livepic.git"
+  },
+  "homepage": "https://github.com/reoberon/livepic#readme",
+  "bugs": {
+    "url": "https://github.com/reoberon/livepic/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
+    "postbuild": "chmod +x dist/cli.js",
+    "dev": "tsc -w",
+    "test": "npm run build && vitest",
+    "test:run": "vitest run",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "bin": {
+    "livepic": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "unpkg": "dist/browser.js",
+  "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@eslint/js": "^9.39.1",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^4.0.13",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vitest": "^0.5.4",
+    "husky": "^9.1.7",
+    "jsdom": "^27.2.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.47.0",
+    "vitest": "^4.0.13"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "p-all": "^5.0.1",
+    "replicate": "^1.4.0"
+  },
+  "overrides": {
+    "glob": "11.1.0"
+  }
+}
