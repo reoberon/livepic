@@ -88,8 +88,8 @@ describe('LivePic web component', () => {
     el.connectedCallback();
 
     // Simulate pointer at bottom-right corner
-    el.pointerX = 800;
-    el.pointerY = 600;
+    LivePic.pointerX = 800;
+    LivePic.pointerY = 600;
     el.rect = new DOMRect(0, 0, 100, 100);
     el.maxDistanceX = 800;
     el.maxDistanceY = 600;
@@ -113,16 +113,16 @@ describe('LivePic web component', () => {
 
     it('returns center frame when pointer is at element center', () => {
       const el = setupForCalc();
-      el.pointerX = 50;
-      el.pointerY = 50;
+      LivePic.pointerX = 50;
+      LivePic.pointerY = 50;
 
       expect(el.calculatePosition()).toBe('50% 50%');
     });
 
     it('clamps to first frame when pointer is far above/left', () => {
       const el = setupForCalc();
-      el.pointerX = -500;
-      el.pointerY = -500;
+      LivePic.pointerX = -500;
+      LivePic.pointerY = -500;
 
       expect(el.calculatePosition()).toBe('0% 0%');
     });
@@ -131,8 +131,8 @@ describe('LivePic web component', () => {
       const el = setupForCalc();
       const centerX = el.rect!.left + el.rect!.width / 2;
       const centerY = el.rect!.top + el.rect!.height / 2;
-      el.pointerX = centerX + el.maxDistanceX! / 2;
-      el.pointerY = centerY + el.maxDistanceY! / 2;
+      LivePic.pointerX = centerX + el.maxDistanceX! / 2;
+      LivePic.pointerY = centerY + el.maxDistanceY! / 2;
 
       expect(el.calculatePosition()).toBe('75% 75%');
     });
@@ -176,8 +176,8 @@ describe('LivePic web component', () => {
     el.rect = new DOMRect(0, 0, 100, 100);
     el.maxDistanceX = 800;
     el.maxDistanceY = 600;
-    el.pointerX = 800;
-    el.pointerY = 600;
+    LivePic.pointerX = 800;
+    LivePic.pointerY = 600;
     el.trackingActive = true;
     el.isVisible = false;
 
@@ -209,7 +209,7 @@ describe('LivePic web component', () => {
     const el = createLivePic();
     const startSpy = vi.spyOn(el, 'startTracking');
     const stopSpy = vi.spyOn(el, 'stopTracking');
-    const updateRectSpy = vi.spyOn(el, 'updateRect');
+    const scheduleRectUpdateSpy = vi.spyOn(el, 'scheduleRectUpdate');
 
     el.observeVisibility();
     expect(observe).toHaveBeenCalledWith(el);
@@ -221,7 +221,7 @@ describe('LivePic web component', () => {
 
     ioCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], mockObserver);
     expect(el.isVisible).toBe(true);
-    expect(updateRectSpy).toHaveBeenCalled();
+    expect(scheduleRectUpdateSpy).toHaveBeenCalled();
     expect(startSpy).toHaveBeenCalled();
   });
 });
