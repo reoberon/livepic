@@ -1,5 +1,5 @@
 import { Attribute, LivePicOptions } from './livepic/types.js';
-import { DEFAULT_TAG } from './livepic/constants.js';
+import { DEFAULT_TAG, DEFAULT_SIZE } from './livepic/constants.js';
 import { ATTRIBUTES } from './livepic/attributes.js';
 
 export class LivePic extends HTMLElement {
@@ -172,12 +172,16 @@ export class LivePic extends HTMLElement {
   }
 
   fallback(message: string) {
-    if (!this.shadowRoot) {
+    if (!this.$el) {
       console.error(message);
       return;
     }
 
-    let errorEl = this.shadowRoot.querySelector('.error');
+    const size = this.options?.size ?? DEFAULT_SIZE;
+    this.$el.style.width ||= `${size}px`;
+    this.$el.style.height ||= `${size}px`;
+
+    let errorEl = this.$el.querySelector('.error');
     if (!errorEl) {
       errorEl = document.createElement('div');
       errorEl.classList.add('error');
