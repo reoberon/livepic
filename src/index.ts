@@ -138,6 +138,7 @@ export class LivePic extends HTMLElement {
     this.$el.style.width = `${size}px`;
     this.$el.style.height = `${size}px`;
     this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
+    this.$el.style.backgroundPosition = '50% 50%';
   }
 
   async loadSprite() {
