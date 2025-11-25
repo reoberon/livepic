@@ -54,7 +54,27 @@ export class LivePic extends HTMLElement {
     this.$el.classList.add('livepic');
 
     const style = document.createElement('style');
-    style.innerText = `.livepic { overflow: hidden; aspect-ratio: 1; }`;
+    style.textContent = `
+      .livepic { overflow: hidden; aspect-ratio: 1; position: relative; }
+      .error {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.7);
+        color: #ff4444;
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        text-align: center;
+        padding: 10px;
+        box-sizing: border-box;
+        pointer-events: none;
+      }
+    `;
 
     shadow.append(this.$el, style);
   }
@@ -150,11 +170,18 @@ export class LivePic extends HTMLElement {
   }
 
   fallback(message: string) {
-    if (this.shadowRoot) {
-      this.shadowRoot.innerHTML = `<p style="color: red;">${message}</p>`;
-    } else {
+    if (!this.shadowRoot) {
       console.error(message);
+      return;
     }
+
+    let errorEl = this.shadowRoot.querySelector('.error');
+    if (!errorEl) {
+      errorEl = document.createElement('div');
+      errorEl.classList.add('error');
+      this.shadowRoot.appendChild(errorEl);
+    }
+    errorEl.textContent = message;
   }
 
   disconnectedCallback() {

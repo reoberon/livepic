@@ -77,6 +77,19 @@ describe('LivePic web component', () => {
     el.disconnectedCallback();
   });
 
+  it('shows error overlay without destroying structure on fallback', () => {
+    const el = createLivePic();
+    el.fallback('Test error');
+
+    const shadowRoot = el.shadowRoot!;
+    expect(shadowRoot.querySelector('.error')).not.toBe(null);
+    expect(shadowRoot.querySelector('.error')!.textContent).toBe('Test error');
+
+    // Structure should not be destroyed
+    expect(shadowRoot.querySelector('.livepic')).not.toBe(null);
+    expect(shadowRoot.querySelector('style')).not.toBe(null);
+  });
+
   it('updates background position based on pointer', () => {
     const el = createLivePic();
     el.setAttribute('spriteSrc', '/sprite.webp');
