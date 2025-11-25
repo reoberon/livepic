@@ -2,7 +2,7 @@
 
 LivePic turns a single portrait into an interactive, gaze‑tracking sprite and a reusable `<live-pic>` web component.
 
-![LivePic demo](./Showcase.gif)
+[![LivePic demo](./Showcase.gif)](/docs/ShowCase.html)
 
 ## Use the `<live-pic>` web component
 
@@ -42,24 +42,21 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 - Then use the tag in your markup as normal:
 
   ```html
-  <live-pic
-    spriteSrc="https://example.com/output/AvatarSprite.webp"
-    gridSize="15"
-    size="150"
-  ></live-pic>
+  <live-pic spriteSrc="/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
   ```
 
 ## Generate your own sprite with the CLI
 
-Use this if you need to produce `AvatarSprite.webp` and `sprite.json` from a source photo.
+You can also use the `generate` script to create frames with the Replicate AI model and assemble a ready‑to‑use `AvatarSprite.webp` from a source photo.
 
 ### Get ready
 
-- Install deps and build once: `npm install && npm run build`
+- Install the LivePic package: `npm install livepic`
 - Add your Replicate API token to `.env`:
   ```
   REPLICATE_API_TOKEN=your-token
   ```
+- Optional: override the Replicate model version via `.env`: `LIVEPIC_MODEL_VERSION=<version-id>`
 - Place your source photo at `input/photo.jpeg` (JPEG/PNG; HEIC is not supported).
 - For sprite assembly, ensure ImageMagick `montage` is on your PATH.
 
@@ -83,7 +80,7 @@ Use this if you need to produce `AvatarSprite.webp` and `sprite.json` from a sou
 
 ### Preview locally
 
-- After generating and building, start the preview server from the project root:
+- After generating and building, you can start the preview server using the CLI:
 
   ```
   npx livepic preview [port]
@@ -91,15 +88,6 @@ Use this if you need to produce `AvatarSprite.webp` and `sprite.json` from a sou
 
   - Default port: `3000`; auto-opens your browser.
   - Expects `output/AvatarSprite.webp` and `output/sprite.json` in the current working directory.
-  - Serves `dist/index.js`; rerun `npm run build` after code changes.
-
-## Project scripts
-
-- `npm run build` — compile TypeScript to `dist/`
-- `npm run dev` — watch mode for development
-- `npm test` / `npm run test:run` / `npm run coverage` — Vitest
-- `npm run lint` / `npm run lint:fix` — ESLint
-- `npm run format` / `npm run format:check` — Prettier
 
 ## What to remember
 
