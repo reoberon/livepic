@@ -156,7 +156,7 @@ describe('LivePic web component', () => {
       const el = createLivePic();
       el.setAttribute('spriteSrc', '/img.png');
 
-      const opts = el.collectOptions();
+      const opts = el.collectOptions()[0];
 
       expect(opts).toEqual({
         size: DEFAULT_SIZE,
@@ -166,9 +166,9 @@ describe('LivePic web component', () => {
       });
     });
 
-    it('throws when required spriteSrc attribute is missing', () => {
+    it('get an error message when required spriteSrc attribute is missing', () => {
       const el = createLivePic();
-      expect(() => el.collectOptions()).toThrow(/spriteSrc/);
+      expect(el.collectOptions()[1].length).toBeGreaterThan(0);
     });
 
     it('computes rect info and visibility', () => {

@@ -16,6 +16,7 @@ export class LivePic extends HTMLElement {
   trackingActive: boolean;
   visibilityObserver: IntersectionObserver | null;
   options: LivePicOptions | null;
+  errors: string[];
 
   static activeInstances = new Set<LivePic>();
   static rafId: number | null = null;
@@ -49,6 +50,7 @@ export class LivePic extends HTMLElement {
     this.trackingActive = false;
     this.visibilityObserver = null;
     this.options = null;
+    this.errors = [];
 
     this.$el = document.createElement('div');
     this.$el.classList.add('livepic');
@@ -81,7 +83,13 @@ export class LivePic extends HTMLElement {
   }
 
   connectedCallback() {
-    this.options = this.collectOptions();
+    [this.options, this.errors] = this.collectOptions();
+
+    if (this.errors.length > 0) {
+      this.fallback(this.errors.join('\n'));
+      return;
+    }
+
     this.initStyles();
     this.loadSprite();
     this.observeVisibility();
@@ -90,44 +98,58 @@ export class LivePic extends HTMLElement {
   }
 
   collectOptions() {
-    const attributes: Attribute[] = ATTRIBUTES;
+    const supportedAttributes: Attribute[] = ATTRIBUTES;
 
-    type Attr = (typeof attributes)[number];
+    type Attr = (typeof supportedAttributes)[number];
 
     type Options = {
       [A in Attr as A['name']]: A['type'] extends 'number' ? number : string;
     };
 
-    const options = attributes.reduce<Options>((prev, attribute) => {
-      prev[attribute.name] = this.validateAttribute(attribute);
+    const errors: string[] = [];
+
+    const options = supportedAttributes.reduce<Options>((prev, attribute) => {
+      const { value, error } = this.validateAttribute(attribute);
+      if (error) {
+        errors.push(error);
+      }
+
+      prev[attribute.name] = value;
       return prev;
     }, {} as Options);
 
-    return options as LivePicOptions;
+    const res: [LivePicOptions, string[]] = [options as LivePicOptions, errors];
+    return res;
   }
 
-  validateAttribute(attribute: Attribute) {
+  validateAttribute(attribute: Attribute): { value: number | string; error?: string } {
     const { name, defaultValue, type } = attribute;
+    const hasAttribute = this.hasAttribute(name);
+    const fallbackValue = defaultValue ?? (type === 'number' ? NaN : '');
 
-    if (!this.hasAttribute(name)) {
-      if (defaultValue === undefined) {
-        throw new Error(`Required ${name} attribute was not provided`);
-      }
-
-      return defaultValue;
+    if (!hasAttribute && defaultValue === undefined) {
+      return {
+        value: fallbackValue,
+        error: `Required ${name} attribute was not provided`,
+      };
     }
 
     switch (type) {
-      case 'string':
-        return this.getAttribute(name)!;
+      case 'string': {
+        const value = hasAttribute ? this.getAttribute(name)! : fallbackValue;
+        return { value };
+      }
 
       case 'number': {
-        const value = Number(this.getAttribute(name));
+        const value = hasAttribute ? Number(this.getAttribute(name)!) : fallbackValue;
         if (Number.isNaN(value)) {
-          throw new Error(`Value of ${name} attribute is not a valid number`);
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute is not a valid number`,
+          };
         }
 
-        return value;
+        return { value };
       }
     }
   }
