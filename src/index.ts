@@ -69,6 +69,7 @@ export class LivePic extends HTMLElement {
         color: #ff4444;
         font-family: system-ui, sans-serif;
         font-size: 14px;
+        font-weight: bold;
         text-align: center;
         padding: 10px;
         box-sizing: border-box;
@@ -180,7 +181,7 @@ export class LivePic extends HTMLElement {
     if (!errorEl) {
       errorEl = document.createElement('div');
       errorEl.classList.add('error');
-      this.shadowRoot.appendChild(errorEl);
+      this.$el.appendChild(errorEl);
     }
     errorEl.textContent = message;
   }
