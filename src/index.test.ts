@@ -161,7 +161,7 @@ describe('LivePic web component', () => {
       aliases: ['aliasname'],
     };
 
-    expect(el.tryFindAlias(attribute)).toBe('aliasvalue');
+    expect(el.tryFindAliasValue(attribute)).toBe('aliasvalue');
   });
 
   it('warns about deprecated attribute usage', () => {

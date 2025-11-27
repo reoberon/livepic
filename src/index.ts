@@ -182,7 +182,7 @@ export class LivePic extends HTMLElement {
     return res;
   }
 
-  tryFindAlias(attribute: Attribute) {
+  tryFindAliasValue(attribute: Attribute) {
     if (!attribute.aliases) {
       return null;
     }
@@ -201,7 +201,7 @@ export class LivePic extends HTMLElement {
     const deprecated = 'deprecated' in attribute && attribute.deprecated === true;
     const rawValue = this.hasAttribute(name)
       ? this.getAttribute(name)
-      : this.tryFindAlias(attribute);
+      : this.tryFindAliasValue(attribute);
 
     if (deprecated && rawValue !== null) {
       const replaces = attribute.replaces;
