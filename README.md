@@ -2,7 +2,7 @@
 
 LivePic turns a single portrait into an interactive, gaze‑tracking sprite and a reusable `<live-pic>` web component.
 
-[![LivePic demo](./Showcase.gif)](/docs/ShowCase.html)
+[![LivePic demo](./Showcase.gif)](https://reoberon.github.io/livepic/ShowCase)
 
 ## Use the `<live-pic>` web component
 
