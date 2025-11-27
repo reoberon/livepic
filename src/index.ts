@@ -208,8 +208,10 @@ export class LivePic extends HTMLElement {
       : this.tryFindAliasValue(attribute);
 
     if (deprecated && rawValue !== null) {
-      const replaces = attribute.replaces ?? 'the new attribute';
-      console.warn(`The "${name}" attribute is deprecated. Please use "${replaces}" instead.`);
+      const replaces = attribute.replaces
+        ? `Please use "${attribute.replaces}" instead.`
+        : 'Check documentation for more information.';
+      console.warn(`The "${name}" attribute is deprecated. ${replaces}`);
     }
 
     if (required && rawValue === null) {

@@ -190,6 +190,24 @@ describe('LivePic web component', () => {
     );
   });
 
+  it('warns about deprecated attribute without replacement info', () => {
+    const el = createLivePic();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const attribute: Attribute = {
+      name: 'oldattr',
+      type: 'string',
+      deprecated: true,
+    };
+
+    el.setAttribute('oldattr', 'somevalue');
+
+    el.validateAttribute(attribute);
+    expect(console.warn).toBeCalledWith(
+      `The "oldattr" attribute is deprecated. Check documentation for more information.`,
+    );
+  });
+
   it('returns an error message when required attribute not provided', () => {
     const el = createLivePic();
     const attribute: Attribute = { name: 'test', type: 'number', required: true };
