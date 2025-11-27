@@ -23,7 +23,7 @@
     "build": "npm run clean && tsc",
     "postbuild": "chmod +x dist/cli.js",
     "dev": "tsc -w",
-    "test": "npm run build && vitest",
+    "test": "vitest",
     "test:run": "vitest run",
     "coverage": "vitest run --coverage",
     "lint": "eslint .",

@@ -73,7 +73,7 @@ export async function startPreviewServer({
       const html = renderHtml({
         gridSize,
         spritePictureSize,
-        spriteSrc: `/${SPRITE_FILE}`,
+        sprite: `/${SPRITE_FILE}`,
       });
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

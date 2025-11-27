@@ -23,7 +23,7 @@ describe('preview-utils', () => {
     const params = {
       gridSize: 5,
       spritePictureSize: 160,
-      spriteSrc: '/output/AvatarSprite.webp',
+      sprite: '/output/AvatarSprite.webp',
     };
 
     const html = renderHtml(params);
@@ -39,6 +39,6 @@ describe('preview-utils', () => {
     const livePicTag = livePicMatch![0];
     expect(livePicTag).toContain(`gridSize="${params.gridSize}"`);
     expect(livePicTag).toContain(`size="${params.spritePictureSize}"`);
-    expect(livePicTag).toContain(`spriteSrc="${params.spriteSrc}"`);
+    expect(livePicTag).toContain(`sprite="${params.sprite}"`);
   });
 });

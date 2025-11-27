@@ -1,18 +1,25 @@
 export type LivePicOptions = {
   size: number;
   gridSize: number;
-  spriteSrc: string;
+  sprite: string;
   fps: number;
+  placeholder?: string;
 };
 
-export type NumberAttribute = {
+type BaseAttribute = {
   name: string;
+  required?: boolean;
+  deprecated?: boolean;
+  replaces?: string;
+  aliases?: string[];
+};
+
+export type NumberAttribute = BaseAttribute & {
   type: 'number';
   defaultValue?: number;
 };
 
-export type StringAttribute = {
-  name: string;
+export type StringAttribute = BaseAttribute & {
   type: 'string';
   defaultValue?: string;
 };
@@ -23,3 +30,5 @@ export type Coordinate = {
   x: number;
   y: number;
 };
+
+export type ImageLoadStatus = 'loaded' | 'aborted' | 'failed' | 'loading' | 'not_started';

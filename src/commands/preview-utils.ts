@@ -35,9 +35,9 @@ export function safeJoin(root: string, requestPath: string) {
 export function renderHtml(params: {
   gridSize: number;
   spritePictureSize: number;
-  spriteSrc: string;
+  sprite: string;
 }) {
-  const { gridSize, spritePictureSize, spriteSrc } = params;
+  const { gridSize, spritePictureSize, sprite } = params;
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -46,14 +46,14 @@ export function renderHtml(params: {
     <title>LivePic Preview</title>
     <style>
       * { box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; margin: 0; }
-      body { display: flex; align-items: center; justify-content: center; background: #f5f5f5; flex-wrap: wrap; align-content: center; }
+      html { height: 100%; }
+      body { width: 100%; min-height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: #f5f5f5; flex-wrap: wrap; align-content: center; }
       live-pic { border: 2px solid #000; }
     </style>
     <script type="module" src="/dist/browser.js"></script>
   </head>
   <body>
-    <live-pic gridSize="${gridSize}" size="${spritePictureSize}" spriteSrc="${spriteSrc}"></live-pic>
+    <live-pic gridSize="${gridSize}" size="${spritePictureSize}" sprite="${sprite}"></live-pic>
   </body>
 </html>`;
 }
