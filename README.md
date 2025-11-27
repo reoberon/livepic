@@ -25,7 +25,7 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
   <live-pic sprite="/output/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
   ```
 - Attributes:
-  - `sprite`\* (string, required): URL/path to the sprite sheet.
+  - `sprite` (string, required): URL/path to the sprite sheet.
   - `spriteSrc` alias for `sprite` attribute.
   - `placeholder` (string): URL/path to a low-res/loading image to show while the sprite loads.
   - `gridSize` (number, default `5`): Frames per side of the sprite grid (e.g., `gridSize="3"` for a 3x3 sprite).

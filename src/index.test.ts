@@ -79,7 +79,7 @@ describe('ImageLoader class', () => {
     expect(loader.image.src).toBe('');
   });
 
-  it('aborts secssesfully', async () => {
+  it('aborts successfully', async () => {
     const loader = new (await import('./index.js')).ImageLoader();
     const loadPromise = loader.load('/test-image.webp');
     expect(loader.status).toBe('loading');
@@ -90,7 +90,7 @@ describe('ImageLoader class', () => {
     expect(loader.image.src).toBe('');
   });
 
-  it('doesn`t abort when not in progress', async () => {
+  it("doesn't abort when not in progress", async () => {
     const loader = new (await import('./index.js')).ImageLoader();
     // Simulate completed state
     loader.status = 'loaded';
@@ -223,7 +223,7 @@ describe('LivePic web component', () => {
     expect(el.validateAttribute(attribute)).toStrictEqual({ value: 'somevalue' });
   });
 
-  it('correctly validated number attributes', () => {
+  it('correctly validates number attributes', () => {
     const el = createLivePic();
     if (el.hasAttribute('test')) {
       el.removeAttribute('test');
@@ -242,13 +242,16 @@ describe('LivePic web component', () => {
     });
   });
 
-  it('doesn`t fallback if all required attributs provided correctly', async () => {
+  it("doesn't fallback if all required attributes provided correctly", async () => {
     const el = createLivePic();
     el.setAttribute('sprite', '/sprite.webp');
     el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
     document.body.appendChild(el);
     el.connectedCallback();
+
+    // Wait for the async loadSprite() operation to complete
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     const shadowRoot = el.shadowRoot!;
     expect(shadowRoot.querySelector('.error')).toBe(null);
@@ -284,6 +287,115 @@ describe('LivePic web component', () => {
     expect(shadowRoot.querySelector('style')).not.toBe(null);
   });
 
+  describe('placeholder loading', () => {
+    it('loads placeholder and sets background image before sprite loads', async () => {
+      const el = createLivePic();
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      // Initialize options but call loadPlaceholder directly to test it in isolation
+      [el.options] = el.collectOptions();
+      el.initStyles();
+      el.loadPlaceholder();
+
+      // Wait for placeholder to load
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
+    });
+
+    it('warns when placeholder loading fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const el = createLivePic();
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', INVALID_URL);
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      el.connectedCallback();
+
+      // Wait for placeholder loading to fail
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Placeholder loading failed'));
+    });
+
+    it('aborts placeholder loading when sprite loads', async () => {
+      const el = createLivePic();
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      el.connectedCallback();
+
+      // Wait for sprite to load (aborts placeholder if still in progress)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      // Sprite should be loaded and background image should be sprite
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+    });
+
+    it('does not load placeholder when not provided', () => {
+      const el = createLivePic();
+      el.setAttribute('sprite', '/sprite.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      // Initialize options before calling loadPlaceholder
+      [el.options] = el.collectOptions();
+      el.loadPlaceholder();
+
+      expect(el.placeholder).toBeNull();
+    });
+  });
+
+  describe('static animation loop', () => {
+    it('starts the shared animation loop', () => {
+      expect(LivePic.rafId).toBeNull();
+
+      LivePic.startLoop();
+
+      expect(LivePic.rafId).not.toBeNull();
+      expect(requestAnimationFrame).toHaveBeenCalled();
+
+      // Clean up
+      LivePic.stopLoop();
+    });
+
+    it('stops the shared animation loop', () => {
+      LivePic.startLoop();
+      expect(LivePic.rafId).not.toBeNull();
+
+      LivePic.stopLoop();
+
+      expect(LivePic.rafId).toBeNull();
+      expect(cancelAnimationFrame).toHaveBeenCalled();
+    });
+
+    it('does not start multiple loops', () => {
+      LivePic.startLoop();
+      const firstRafId = LivePic.rafId;
+
+      LivePic.startLoop();
+
+      expect(LivePic.rafId).toBe(firstRafId);
+
+      // Clean up
+      LivePic.stopLoop();
+    });
+
+    it('handles stopLoop when not running', () => {
+      LivePic.rafId = null;
+
+      // Should not throw
+      LivePic.stopLoop();
+
+      expect(LivePic.rafId).toBeNull();
+    });
+  });
+
   it('updates background position based on pointer', async () => {
     const el = createLivePic();
     el.setAttribute('sprite', '/sprite.webp');
@@ -294,20 +406,20 @@ describe('LivePic web component', () => {
     document.body.appendChild(el);
     el.connectedCallback();
 
-    setTimeout(() => {
-      // Simulate pointer at top-left corner
-      LivePic.pointerX = 800;
-      LivePic.pointerY = 600;
-      el.rect = new DOMRect(0, 0, 100, 100);
-      el.maxDistanceX = 800;
-      el.maxDistanceY = 600;
-      el.isVisible = true;
-      el.updateFrame();
+    // Wait for the async loadSprite() operation to complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
-      el.disconnectedCallback();
-    }, 100);
     // Simulate pointer at bottom-right corner
+    LivePic.pointerX = 800;
+    LivePic.pointerY = 600;
+    el.rect = new DOMRect(0, 0, 100, 100);
+    el.maxDistanceX = 800;
+    el.maxDistanceY = 600;
+    el.isVisible = true;
+    el.updateFrame();
+
+    expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+    el.disconnectedCallback();
   });
 
   describe('calculatePosition', () => {

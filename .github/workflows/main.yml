@@ -29,6 +29,7 @@ jobs:
         run: npm clean-install
       - name: Build
         run: npm run build
+      # Tests run directly against TypeScript source via vitest, not against dist artifacts
       - name: Test
         run: npm run test
       - name: Release
