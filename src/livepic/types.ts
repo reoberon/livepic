@@ -2,7 +2,6 @@ export type LivePicOptions = {
   size: number;
   gridSize: number;
   sprite: string;
-  spriteSrc?: string;
   fps: number;
   placeholder?: string;
 };

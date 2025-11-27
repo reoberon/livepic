@@ -272,7 +272,7 @@ export class LivePic extends HTMLElement {
   }
 
   async loadSprite() {
-    const src = this.options!.sprite ?? this.options!.spriteSrc;
+    const src = this.options!.sprite;
     return new Promise<void>((resolve, reject) => {
       this.sprite
         .load(src)
