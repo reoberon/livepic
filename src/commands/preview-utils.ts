@@ -53,7 +53,7 @@ export function renderHtml(params: {
     <script type="module" src="/dist/browser.js"></script>
   </head>
   <body>
-    <live-pic gridSize="${gridSize}" size="${spritePictureSize}" spriteSrc="${spriteSrc}"></live-pic>
+    <live-pic gridSize="${gridSize}" size="${spritePictureSize}" sprite="${sprite}"></live-pic>
   </body>
 </html>`;
 }
