@@ -79,7 +79,6 @@ export class LivePic extends HTMLElement {
   static pointerX: number | null = null;
   static pointerY: number | null = null;
   static pointerVersion = 0;
-  static viewportListenersAttached = false;
   static handleViewportChange = () => {
     LivePic.activeInstances.forEach((instance) => instance.scheduleRectUpdate());
   };
@@ -398,17 +397,15 @@ export class LivePic extends HTMLElement {
     LivePic.activeInstances.add(this);
 
     // not the first instance, skip setting up shared listeners
-    if (LivePic.activeInstances.size !== 1) {
+    if (LivePic.activeInstances.size > 1) {
       return;
     }
 
     document.addEventListener('mousemove', LivePic.handlePointerMove);
     document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
-    if (!LivePic.viewportListenersAttached) {
-      window.addEventListener('resize', LivePic.handleViewportChange);
-      window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
-      LivePic.viewportListenersAttached = true;
-    }
+    window.addEventListener('resize', LivePic.handleViewportChange);
+    window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+
     LivePic.startLoop();
   }
 
@@ -417,17 +414,16 @@ export class LivePic extends HTMLElement {
     this.trackingActive = false;
 
     LivePic.activeInstances.delete(this);
-    if (LivePic.activeInstances.size !== 0) {
+    // other instances still active, skip removing shared listeners
+    if (LivePic.activeInstances.size > 0) {
       return;
     }
 
     document.removeEventListener('mousemove', LivePic.handlePointerMove);
     document.removeEventListener('touchmove', LivePic.handlePointerMove);
-    if (LivePic.viewportListenersAttached) {
-      window.removeEventListener('resize', LivePic.handleViewportChange);
-      window.removeEventListener('scroll', LivePic.handleViewportChange);
-      LivePic.viewportListenersAttached = false;
-    }
+    window.removeEventListener('resize', LivePic.handleViewportChange);
+    window.removeEventListener('scroll', LivePic.handleViewportChange);
+
     LivePic.pointerX = null;
     LivePic.pointerY = null;
     LivePic.stopLoop();
