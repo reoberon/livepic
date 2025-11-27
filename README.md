@@ -18,7 +18,7 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
   import { LivePic } from 'livepic';
   ```
 
-  This registers the `<live-pic>` custom element for use.
+  This auto registers the `<live-pic>` custom element for use.
 
 - Add to your markup (point to your sprite sheet):
   ```html
