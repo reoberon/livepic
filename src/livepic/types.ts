@@ -9,8 +9,6 @@ export type LivePicOptions = {
 
 type BaseAttribute = {
   name: string;
-  type: 'string' | 'number';
-  defaultValue?: string | number;
   required?: boolean;
   deprecated?: boolean;
   replaces?: string;
