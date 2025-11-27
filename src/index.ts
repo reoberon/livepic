@@ -150,11 +150,15 @@ export class LivePic extends HTMLElement {
 
     this.initStyles();
     this.loadPlaceholder();
-    this.loadSprite().then(() => {
-      this.observeVisibility();
-      this.updateRect();
-      this.startTracking();
-    });
+    this.loadSprite()
+      .then(() => {
+        this.observeVisibility();
+        this.updateRect();
+        this.startTracking();
+      })
+      .catch(() => {
+        // Sprite loading failed, fallback already called in loadSprite()
+      });
   }
 
   collectOptions() {
@@ -204,8 +208,10 @@ export class LivePic extends HTMLElement {
       : this.tryFindAliasValue(attribute);
 
     if (deprecated && rawValue !== null) {
-      const replaces = attribute.replaces;
-      console.warn(`The "${name}" attribute is deprecated. Please use "${replaces}" instead.`);
+      const replaces = attribute.replaces
+        ? `Please use "${attribute.replaces}" instead.`
+        : 'Check documentation for more information.';
+      console.warn(`The "${name}" attribute is deprecated. ${replaces}`);
     }
 
     if (required && rawValue === null) {
@@ -348,12 +354,13 @@ export class LivePic extends HTMLElement {
     if (pointerX === null || pointerY === null) return;
     if (document.visibilityState === 'hidden') return;
 
-    if (now - this.lastFrameTime < 1000 / this.options!.fps) return;
-    this.lastFrameTime = now;
-
+    // Check if position has changed before FPS throttling to avoid unnecessary lastFrameTime updates
     const pointerVersion = LivePic.pointerVersion;
     if (pointerVersion === this.lastPointerVersion && this.rectVersion === this.lastRectVersion)
       return;
+
+    if (now - this.lastFrameTime < 1000 / this.options!.fps) return;
+    this.lastFrameTime = now;
 
     this.$el.style.backgroundPosition = this.calculatePosition(pointerX, pointerY);
     this.lastPointerVersion = pointerVersion;
@@ -390,7 +397,7 @@ export class LivePic extends HTMLElement {
     this.trackingActive = true;
     LivePic.activeInstances.add(this);
 
-    // that's a first instance
+    // not the first instance, skip setting up shared listeners
     if (LivePic.activeInstances.size !== 1) {
       return;
     }
