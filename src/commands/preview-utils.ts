@@ -35,9 +35,9 @@ export function safeJoin(root: string, requestPath: string) {
 export function renderHtml(params: {
   gridSize: number;
   spritePictureSize: number;
-  spriteSrc: string;
+  sprite: string;
 }) {
-  const { gridSize, spritePictureSize, spriteSrc } = params;
+  const { gridSize, spritePictureSize, sprite } = params;
   return `<!DOCTYPE html>
 <html lang="en">
   <head>

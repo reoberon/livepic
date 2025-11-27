@@ -1,6 +1,60 @@
-import { Attribute, LivePicOptions } from './livepic/types.js';
+import { Attribute, LivePicOptions, ImageLoadStatus } from './livepic/types.js';
 import { DEFAULT_TAG, DEFAULT_SIZE } from './livepic/constants.js';
 import { ATTRIBUTES } from './livepic/attributes.js';
+
+export class ImageLoader {
+  image: HTMLImageElement;
+  status: ImageLoadStatus;
+
+  constructor() {
+    this.image = new Image();
+    this.status = 'not_started';
+  }
+
+  inProgress() {
+    return this.status === 'loading' || this.status === 'not_started';
+  }
+
+  async load(src: string) {
+    this.status = 'loading';
+    return new Promise<ImageLoadStatus>((resolve, reject) => {
+      if (!src) {
+        this.status = 'failed';
+        return reject(this.status);
+      }
+
+      const onLoad = () => {
+        this.image.removeEventListener('error', onError);
+
+        if (this.status === 'aborted') {
+          return reject(this.status);
+        }
+
+        this.status = 'loaded';
+        resolve(this.status);
+      };
+
+      const onError = () => {
+        this.image.removeEventListener('load', onLoad);
+        this.image.src = '';
+        this.status = 'failed';
+        reject(this.status);
+      };
+
+      this.image.addEventListener('load', onLoad, { once: true });
+      this.image.addEventListener('error', onError, { once: true });
+
+      this.image.src = src;
+    });
+  }
+
+  abort() {
+    if (this.inProgress()) {
+      this.status = 'aborted';
+      this.image.src = '';
+    }
+  }
+}
 
 export class LivePic extends HTMLElement {
   $el: HTMLElement;
@@ -17,6 +71,8 @@ export class LivePic extends HTMLElement {
   visibilityObserver: IntersectionObserver | null;
   options: LivePicOptions | null;
   errors: string[];
+  sprite: ImageLoader;
+  placeholder: ImageLoader | null;
 
   static activeInstances = new Set<LivePic>();
   static rafId: number | null = null;
@@ -51,6 +107,8 @@ export class LivePic extends HTMLElement {
     this.visibilityObserver = null;
     this.options = null;
     this.errors = [];
+    this.sprite = new ImageLoader();
+    this.placeholder = null;
 
     this.$el = document.createElement('div');
     this.$el.classList.add('livepic');
@@ -91,25 +149,27 @@ export class LivePic extends HTMLElement {
     }
 
     this.initStyles();
-    this.loadSprite();
-    this.observeVisibility();
-    this.updateRect();
-    this.startTracking();
+    this.loadPlaceholder();
+    this.loadSprite().then(() => {
+      this.observeVisibility();
+      this.updateRect();
+      this.startTracking();
+    });
   }
 
   collectOptions() {
-    const supportedAttributes: Attribute[] = ATTRIBUTES;
-
-    type Attr = (typeof supportedAttributes)[number];
+    type Attr = (typeof ATTRIBUTES)[number];
 
     type Options = {
       [A in Attr as A['name']]: A['type'] extends 'number' ? number : string;
     };
 
+    const supportedAttributes: Attribute[] = ATTRIBUTES;
     const errors: string[] = [];
 
     const options = supportedAttributes.reduce<Options>((prev, attribute) => {
       const { value, error } = this.validateAttribute(attribute);
+
       if (error) {
         errors.push(error);
       }
@@ -122,12 +182,33 @@ export class LivePic extends HTMLElement {
     return res;
   }
 
-  validateAttribute(attribute: Attribute): { value: number | string; error?: string } {
-    const { name, defaultValue, type } = attribute;
-    const hasAttribute = this.hasAttribute(name);
-    const fallbackValue = defaultValue ?? (type === 'number' ? NaN : '');
+  tryFindAlias(attribute: Attribute) {
+    if (!attribute.aliases) {
+      return null;
+    }
 
-    if (!hasAttribute && defaultValue === undefined) {
+    for (const alias of attribute.aliases) {
+      if (this.hasAttribute(alias)) {
+        return this.getAttribute(alias)!;
+      }
+    }
+    return null;
+  }
+
+  validateAttribute(attribute: Attribute): { value: number | string; error?: string } {
+    const { name, defaultValue, type, required } = attribute;
+    const fallbackValue = defaultValue ?? (type === 'number' ? NaN : '');
+    const deprecated = 'deprecated' in attribute && attribute.deprecated === true;
+    const rawValue = this.hasAttribute(name)
+      ? this.getAttribute(name)
+      : this.tryFindAlias(attribute);
+
+    if (deprecated && rawValue !== null) {
+      const replaces = attribute.replaces;
+      console.warn(`The "${name}" attribute is deprecated. Please use "${replaces}" instead.`);
+    }
+
+    if (required && rawValue === null) {
       return {
         value: fallbackValue,
         error: `Required ${name} attribute was not provided`,
@@ -136,12 +217,16 @@ export class LivePic extends HTMLElement {
 
     switch (type) {
       case 'string': {
-        const value = hasAttribute ? this.getAttribute(name)! : fallbackValue;
+        const value = rawValue !== null ? rawValue : fallbackValue;
         return { value };
       }
 
       case 'number': {
-        const value = hasAttribute ? Number(this.getAttribute(name)!) : fallbackValue;
+        if (rawValue === null) {
+          return { value: fallbackValue };
+        }
+
+        const value = Number(rawValue);
         if (Number.isNaN(value)) {
           return {
             value: fallbackValue,
@@ -164,32 +249,40 @@ export class LivePic extends HTMLElement {
     this.$el.style.backgroundPosition = '50% 50%';
   }
 
-  async loadSprite() {
-    return new Promise((resolve, reject) => {
-      const sprite = new Image();
-      const src = this.options?.spriteSrc;
+  loadPlaceholder() {
+    const src = this.options!.placeholder;
+    if (!src) return;
 
-      if (!src) {
-        this.fallback('Sprite src is missing');
-        return reject(new Error('Sprite src is missing'));
-      }
+    this.placeholder = new ImageLoader();
 
-      const handleLoad = () => {
+    this.placeholder
+      .load(src)
+      .then(() => {
         this.$el.style.backgroundImage = `url(${src})`;
-        sprite.removeEventListener('error', handleError);
-        resolve(src);
-      };
+      })
+      .catch(() => {
+        console.warn(`Placeholder loading failed for src: ${src}`);
+      });
+  }
 
-      const handleError = () => {
-        this.fallback('Sprite loading failed');
-        sprite.removeEventListener('load', handleLoad);
-        reject(src);
-      };
+  async loadSprite() {
+    const src = this.options!.sprite ?? this.options!.spriteSrc;
+    return new Promise<void>((resolve, reject) => {
+      this.sprite
+        .load(src)
+        .then(() => {
+          const placeholder = this.placeholder;
+          if (placeholder && placeholder.inProgress()) {
+            placeholder.abort();
+          }
 
-      sprite.addEventListener('load', handleLoad, { once: true });
-      sprite.addEventListener('error', handleError, { once: true });
-
-      sprite.src = src;
+          this.$el.style.backgroundImage = `url(${src})`;
+          resolve();
+        })
+        .catch(() => {
+          this.fallback('Sprite loading failed');
+          reject();
+        });
     });
   }
 

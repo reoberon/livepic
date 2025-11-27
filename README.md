@@ -22,10 +22,12 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
 - Add to your markup (point to your sprite sheet):
   ```html
-  <live-pic spriteSrc="/output/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
+  <live-pic sprite="/output/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
   ```
 - Attributes:
-  - `spriteSrc` (required): URL/path to the sprite sheet.
+  - `sprite`\* (string, required): URL/path to the sprite sheet.
+  - `spriteSrc` alias for `sprite` attribute.
+  - `placeholder` (string): URL/path to a low-res/loading image to show while the sprite loads.
   - `gridSize` (number, default `5`): Frames per side of the sprite grid (e.g., `gridSize="3"` for a 3x3 sprite).
   - `size` (number, default `160`): Component width/height in px.
   - `fps` (number, default `30`): Max frame updates per second.
@@ -42,7 +44,7 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 - Then use the tag in your markup as normal:
 
   ```html
-  <live-pic spriteSrc="/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
+  <live-pic sprite="/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
   ```
 
 ## Generate your own sprite with the CLI
