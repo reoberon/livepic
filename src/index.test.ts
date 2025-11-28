@@ -285,9 +285,13 @@ describe('LivePic web component', () => {
     document.body.appendChild(el);
     el.connectedCallback();
 
+    // Wait for sprite load to apply sprite sizing/background
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
     expect(el.$el.style.width).toBe('80px');
     expect(el.$el.style.height).toBe('80px');
-    expect(el.$el.style.backgroundSize).toContain('240px 240px');
+    expect(el.$el.style.backgroundSize).toBe('240px 240px');
+    expect(el.$el.style.backgroundImage).toContain('sprite.webp');
 
     el.disconnectedCallback();
   });
@@ -308,6 +312,8 @@ describe('LivePic web component', () => {
   describe('placeholder loading', () => {
     it('loads placeholder and sets background image before sprite loads', async () => {
       const el = createLivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
       el.setAttribute('sprite', '/sprite.webp');
       el.setAttribute('placeholder', '/placeholder.webp');
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
@@ -321,6 +327,12 @@ describe('LivePic web component', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
+      expect(el.$el.style.backgroundSize).toContain('100px 100px');
+
+      // Now load sprite to ensure it replaces placeholder
+      await el.loadSprite();
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('500px 500px');
     });
 
     it('warns when placeholder loading fails', async () => {
@@ -342,6 +354,8 @@ describe('LivePic web component', () => {
 
     it('aborts placeholder loading when sprite loads', async () => {
       const el = createLivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
       el.setAttribute('sprite', '/sprite.webp');
       el.setAttribute('placeholder', '/placeholder.webp');
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
@@ -354,6 +368,7 @@ describe('LivePic web component', () => {
 
       // Sprite should be loaded and background image should be sprite
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('500px 500px');
     });
 
     it('does not load placeholder when not provided', () => {

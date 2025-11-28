@@ -245,17 +245,15 @@ export class LivePic extends HTMLElement {
   }
 
   initStyles() {
-    const { size, gridSize } = this.options!;
-    const spriteWidth = gridSize * size;
+    const { size } = this.options!;
 
     this.$el.style.width = `${size}px`;
     this.$el.style.height = `${size}px`;
-    this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
     this.$el.style.backgroundPosition = '50% 50%';
   }
 
   loadPlaceholder() {
-    const src = this.options!.placeholder;
+    const { placeholder: src, size } = this.options!;
     if (!src) return;
 
     this.placeholder = new ImageLoader();
@@ -263,6 +261,7 @@ export class LivePic extends HTMLElement {
     this.placeholder
       .load(src)
       .then(() => {
+        this.$el.style.backgroundSize = `${size}px ${size}px`;
         this.$el.style.backgroundImage = `url(${src})`;
       })
       .catch(() => {
@@ -271,7 +270,7 @@ export class LivePic extends HTMLElement {
   }
 
   async loadSprite() {
-    const src = this.options!.sprite;
+    const { sprite: src, size, gridSize } = this.options!;
     return new Promise<void>((resolve, reject) => {
       this.sprite
         .load(src)
@@ -281,6 +280,8 @@ export class LivePic extends HTMLElement {
             placeholder.abort();
           }
 
+          const spriteWidth = gridSize * size;
+          this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
           this.$el.style.backgroundImage = `url(${src})`;
           resolve();
         })
