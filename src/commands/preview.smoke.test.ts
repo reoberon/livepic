@@ -11,7 +11,7 @@ describe('preview smoke', () => {
     fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(
       path.join(outputDir, 'sprite.json'),
-      JSON.stringify({ gridSize: 3, spritePictureSize: 120 }),
+      JSON.stringify({ gridSize: 3, pictureSize: 120 }),
     );
     fs.writeFileSync(path.join(outputDir, 'AvatarSprite.webp'), Buffer.from([0]));
 

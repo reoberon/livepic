@@ -1,3 +1,4 @@
+export const DEFAULT_PICTURE_SIZE = 160;
 export const DEFAULT_GRID_SIZE = 5;
 export const DEFAULT_ROTATE_BOUND = 20;
 export const DEFAULT_PUPIL_BOUND = 13;

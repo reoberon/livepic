@@ -97,7 +97,7 @@ export default async function runGenerate(args: string[] = []) {
       if (created) {
         await writeSpriteMetadata(context, {
           gridSize: setup.X_STEPS,
-          spritePictureSize: spriteSize,
+          pictureSize: spriteSize,
         });
       }
     } else {

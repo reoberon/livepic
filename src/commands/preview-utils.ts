@@ -32,12 +32,8 @@ export function safeJoin(root: string, requestPath: string) {
   return joined.startsWith(root) ? joined : null;
 }
 
-export function renderHtml(params: {
-  gridSize: number;
-  spritePictureSize: number;
-  sprite: string;
-}) {
-  const { gridSize, spritePictureSize, sprite } = params;
+export function renderHtml(params: { gridSize: number; pictureSize: number; sprite: string }) {
+  const { gridSize, pictureSize, sprite } = params;
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -53,7 +49,7 @@ export function renderHtml(params: {
     <script type="module" src="/dist/browser.js"></script>
   </head>
   <body>
-    <live-pic gridSize="${gridSize}" size="${spritePictureSize}" sprite="${sprite}"></live-pic>
+    <live-pic gridSize="${gridSize}" size="${pictureSize}" sprite="${sprite}"></live-pic>
   </body>
 </html>`;
 }

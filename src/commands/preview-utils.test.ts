@@ -5,7 +5,14 @@ import { contentType, renderHtml, safeJoin } from './preview-utils.js';
 describe('preview-utils', () => {
   it('returns expected content type', () => {
     expect(contentType('file.html')).toBe('text/html; charset=utf-8');
+    expect(contentType('file.js')).toBe('text/javascript; charset=utf-8');
+    expect(contentType('style.css')).toBe('text/css; charset=utf-8');
+    expect(contentType('sprite.json')).toBe('application/json; charset=utf-8');
     expect(contentType('image.webp')).toBe('image/webp');
+    expect(contentType('image.png')).toBe('image/png');
+    expect(contentType('image.jpg')).toBe('image/jpeg');
+    expect(contentType('image.jpeg')).toBe('image/jpeg');
+    expect(contentType('image.svg')).toBe('image/svg+xml');
     expect(contentType('unknown.bin')).toBe('application/octet-stream');
   });
 
@@ -22,7 +29,7 @@ describe('preview-utils', () => {
   it('correctly renders HTML with provided attributes', () => {
     const params = {
       gridSize: 5,
-      spritePictureSize: 160,
+      pictureSize: 160,
       sprite: '/output/AvatarSprite.webp',
     };
 
@@ -38,7 +45,7 @@ describe('preview-utils', () => {
     expect(livePicMatch).not.toBeNull();
     const livePicTag = livePicMatch![0];
     expect(livePicTag).toContain(`gridSize="${params.gridSize}"`);
-    expect(livePicTag).toContain(`size="${params.spritePictureSize}"`);
+    expect(livePicTag).toContain(`size="${params.pictureSize}"`);
     expect(livePicTag).toContain(`sprite="${params.sprite}"`);
   });
 });

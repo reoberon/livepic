@@ -78,7 +78,7 @@ You can also use the `generate` script to create frames with the Replicate AI mo
 - Output:
   - Frames: `output/avatar_*.webp`
   - Sprite: `output/AvatarSprite.webp`
-  - Metadata: `output/sprite.json` (grid size and cell size)
+  - Metadata: `output/sprite.json` (contains gridSize and pictureSize properties. Useful for preview command.)
 
 ### Preview locally
 
@@ -86,9 +86,13 @@ You can also use the `generate` script to create frames with the Replicate AI mo
 
   ```
   npx livepic preview [port]
+  npx livepic preview -g <gridSize> -s <pictureSize> -p <port>
   ```
 
-  - Default port: `3000`; auto-opens your browser.
+  Arguments:
+  - `gridSize` (`-g`, `--grid-size`) - number of pictures per side in a sprite; must be a positive odd integer (use `5` for a `5x5` sprite). If not provided, it is read from `sprite.json`.
+  - `pictureSize` (`-s`, `--picture-size`) - size of the component in pixels. If not provided, it is read from `sprite.json`.
+  - `port` (`-p`, `--port`) - port to run the preview server. Default: `3000`; auto-opens your browser. If you provide a single positional argument, it is treated as the port for convenience.
   - Expects `output/AvatarSprite.webp` and `output/sprite.json` in the current working directory.
 
 ## What to remember

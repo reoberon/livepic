@@ -155,12 +155,12 @@ describe('generate utils', () => {
     const outputDir = path.join(tmp, 'output');
     const context = { outputDir } as unknown as GenerateContext;
 
-    await writeSpriteMetadata(context, { gridSize: 3, spritePictureSize: 160 });
+    await writeSpriteMetadata(context, { gridSize: 3, pictureSize: 160 });
 
     const metaPath = path.join(outputDir, 'sprite.json');
     expect(fs.existsSync(outputDir)).toBe(true);
     const content = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-    expect(content).toEqual({ gridSize: 3, spritePictureSize: 160 });
+    expect(content).toEqual({ gridSize: 3, pictureSize: 160 });
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Sprite metadata saved'));
   });
 

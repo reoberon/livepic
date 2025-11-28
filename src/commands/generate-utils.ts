@@ -144,7 +144,7 @@ export async function promptForNumber(message: string, defaultValue: number) {
 
 export async function writeSpriteMetadata(
   context: GenerateContext,
-  meta: { gridSize: number; spritePictureSize: number },
+  meta: { gridSize: number; pictureSize: number },
 ) {
   if (!fs.existsSync(context.outputDir)) {
     fs.mkdirSync(context.outputDir, { recursive: true });
