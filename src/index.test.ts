@@ -469,6 +469,52 @@ describe('LivePic web component', () => {
       LivePic.stopLoop();
     });
 
+    it('does not keep the animation loop alive when there is no pending work', () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+
+      LivePic.startLoop();
+      expect(frames).toHaveLength(1);
+
+      frames[0](0);
+
+      expect(LivePic.rafId).toBeNull();
+      expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    });
+
+    it('reschedules the animation loop when an update is throttled by fps', () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+
+      const el = createLivePic();
+      el.options = { size: 100, gridSize: 5, sprite: '/img.png', fps: 60 };
+      el.rect = new DOMRect(0, 0, 100, 100);
+      el.maxDistanceX = 800;
+      el.maxDistanceY = 600;
+      el.isVisible = true;
+      el.trackingActive = true;
+      el.lastFrameTime = Number.MAX_SAFE_INTEGER;
+      LivePic.pointerX = 800;
+      LivePic.pointerY = 600;
+      LivePic.pointerVersion = 1;
+      LivePic.activeInstances.add(el);
+
+      LivePic.startLoop();
+      frames[0](0);
+
+      expect(frames).toHaveLength(2);
+      expect(LivePic.rafId).toBe(2);
+
+      LivePic.activeInstances.clear();
+      LivePic.stopLoop();
+    });
+
     it('handles stopLoop when not running', () => {
       LivePic.rafId = null;
 

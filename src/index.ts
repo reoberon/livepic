@@ -81,12 +81,14 @@ export class LivePic extends HTMLElement {
   static pointerVersion = 0;
   static handleViewportChange = () => {
     LivePic.activeInstances.forEach((instance) => instance.scheduleRectUpdate());
+    LivePic.startLoop();
   };
   static handlePointerMove = (e: MouseEvent | TouchEvent) => {
     const point = 'touches' in e ? e.touches[0] : e;
     LivePic.pointerX = point.clientX;
     LivePic.pointerY = point.clientY;
     LivePic.pointerVersion += 1;
+    LivePic.startLoop();
   };
 
   constructor() {
@@ -369,30 +371,31 @@ export class LivePic extends HTMLElement {
     this.rectUpdateQueued = true;
   };
 
-  updateFrame = (now = performance.now()) => {
-    if (!this.trackingActive) return;
+  updateFrame = (now = performance.now()): boolean => {
+    if (!this.trackingActive) return false;
 
     if (this.rectUpdateQueued) {
       this.updateRect();
     }
 
-    if (!this.isVisible) return;
+    if (!this.isVisible) return false;
     const pointerX = LivePic.pointerX;
     const pointerY = LivePic.pointerY;
-    if (pointerX === null || pointerY === null) return;
-    if (document.visibilityState === 'hidden') return;
+    if (pointerX === null || pointerY === null) return false;
+    if (document.visibilityState === 'hidden') return false;
 
     // Check if position has changed before FPS throttling to avoid unnecessary lastFrameTime updates
     const pointerVersion = LivePic.pointerVersion;
     if (pointerVersion === this.lastPointerVersion && this.rectVersion === this.lastRectVersion)
-      return;
+      return false;
 
-    if (now - this.lastFrameTime < 1000 / this.options!.fps) return;
+    if (now - this.lastFrameTime < 1000 / this.options!.fps) return true;
     this.lastFrameTime = now;
 
     this.$el.style.backgroundPosition = this.calculatePosition(pointerX, pointerY);
     this.lastPointerVersion = pointerVersion;
     this.lastRectVersion = this.rectVersion;
+    return false;
   };
 
   calculatePosition(pointerX = LivePic.pointerX, pointerY = LivePic.pointerY) {
@@ -421,19 +424,20 @@ export class LivePic extends HTMLElement {
   }
 
   startTracking() {
-    if (this.trackingActive) return;
-    this.trackingActive = true;
-    LivePic.activeInstances.add(this);
-
-    // not the first instance, skip setting up shared listeners
-    if (LivePic.activeInstances.size > 1) {
+    if (this.trackingActive) {
+      LivePic.startLoop();
       return;
     }
 
-    document.addEventListener('mousemove', LivePic.handlePointerMove);
-    document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
-    window.addEventListener('resize', LivePic.handleViewportChange);
-    window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+    this.trackingActive = true;
+    LivePic.activeInstances.add(this);
+
+    if (LivePic.activeInstances.size === 1) {
+      document.addEventListener('mousemove', LivePic.handlePointerMove);
+      document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
+      window.addEventListener('resize', LivePic.handleViewportChange);
+      window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+    }
 
     LivePic.startLoop();
   }
@@ -486,13 +490,22 @@ export class LivePic extends HTMLElement {
 
   static startLoop() {
     if (LivePic.rafId !== null) return;
-    const step = () => {
-      LivePic.rafId = requestAnimationFrame(step);
-      const now = performance.now();
-      LivePic.activeInstances.forEach((instance) => instance.updateFrame(now));
-    };
-    step();
+    LivePic.rafId = requestAnimationFrame(LivePic.runFrame);
   }
+
+  static runFrame = () => {
+    LivePic.rafId = null;
+
+    const now = performance.now();
+    let hasPendingFrame = false;
+    LivePic.activeInstances.forEach((instance) => {
+      hasPendingFrame = instance.updateFrame(now) || hasPendingFrame;
+    });
+
+    if (hasPendingFrame) {
+      LivePic.startLoop();
+    }
+  };
 
   static stopLoop() {
     if (LivePic.rafId !== null) {
