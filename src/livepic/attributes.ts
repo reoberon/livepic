@@ -1,5 +1,7 @@
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './constants.js';
-import { Attribute } from './types.js';
+import { Attribute, LivePicLayoutTracking } from './types.js';
+
+const LAYOUT_TRACKING_VALUES: readonly LivePicLayoutTracking[] = ['static', 'frame'];
 
 export const ATTRIBUTES: Attribute[] = [
   { name: 'size', type: 'number', defaultValue: DEFAULT_SIZE, integer: true, min: 1 },
@@ -14,5 +16,10 @@ export const ATTRIBUTES: Attribute[] = [
   { name: 'sprite', type: 'string', required: true, aliases: ['spriteSrc'] },
   { name: 'placeholder', type: 'string' },
   { name: 'fps', type: 'number', defaultValue: DEFAULT_FPS, positive: true },
-  { name: 'layoutTracking', type: 'string', defaultValue: 'static', values: ['static', 'frame'] },
+  {
+    name: 'layoutTracking',
+    type: 'string',
+    defaultValue: 'static',
+    values: LAYOUT_TRACKING_VALUES,
+  },
 ];

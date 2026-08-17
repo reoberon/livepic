@@ -1,9 +1,11 @@
+export type LivePicLayoutTracking = 'static' | 'frame';
+
 export type LivePicOptions = {
   size: number;
   gridSize: number;
   sprite: string;
   fps: number;
-  layoutTracking: string;
+  layoutTracking: LivePicLayoutTracking;
   placeholder?: string;
 };
 
