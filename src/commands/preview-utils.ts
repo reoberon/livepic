@@ -27,9 +27,12 @@ export function contentType(filePath: string) {
 }
 
 export function safeJoin(root: string, requestPath: string) {
+  const rootPath = path.resolve(root);
   const cleaned = requestPath.startsWith('/') ? requestPath.slice(1) : requestPath;
-  const joined = path.normalize(path.join(root, cleaned));
-  return joined.startsWith(root) ? joined : null;
+  const joined = path.resolve(rootPath, cleaned);
+  const relative = path.relative(rootPath, joined);
+
+  return relative && (relative.startsWith('..') || path.isAbsolute(relative)) ? null : joined;
 }
 
 export function renderHtml(params: { gridSize: number; pictureSize: number; sprite: string }) {

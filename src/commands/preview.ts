@@ -45,7 +45,7 @@ export async function startPreviewServer({
   gridSize,
   pictureSize,
   exitOnError = true,
-  host = '0.0.0.0',
+  host = '127.0.0.1',
 }: {
   port: number;
   cwd: string;
@@ -140,8 +140,7 @@ export async function startPreviewServer({
 
   const address = server.address();
   const realPort = typeof address === 'object' && address ? address.port : port;
-  const displayHost = host === '0.0.0.0' ? 'localhost' : host;
-  const url = `http://${displayHost}:${realPort}/`;
+  const url = `http://${host}:${realPort}/`;
   console.log(`Preview server running at ${url}`);
   if (open) {
     await openInBrowser(url);

@@ -20,6 +20,7 @@ describe('preview-utils', () => {
     const root = '/root/base';
     expect(safeJoin(root, 'nested/file.txt')).toBe(path.join(root, 'nested/file.txt'));
     expect(safeJoin(root, '../etc/passwd')).toBeNull();
+    expect(safeJoin(root, '../base-secret/file.txt')).toBeNull();
     expect(safeJoin(root, '/../outside')).toBeNull();
     expect(safeJoin(root, './inside')).toBe(path.join(root, 'inside'));
     expect(safeJoin(root, 'double/../inside')).toBe(path.join(root, 'inside'));
