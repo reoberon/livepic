@@ -17,6 +17,10 @@ type BaseAttribute = {
 export type NumberAttribute = BaseAttribute & {
   type: 'number';
   defaultValue?: number;
+  integer?: boolean;
+  min?: number;
+  positive?: boolean;
+  odd?: boolean;
 };
 
 export type StringAttribute = BaseAttribute & {

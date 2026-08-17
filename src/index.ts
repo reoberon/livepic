@@ -232,10 +232,38 @@ export class LivePic extends HTMLElement {
         }
 
         const value = Number(rawValue);
-        if (Number.isNaN(value)) {
+        if (!Number.isFinite(value)) {
           return {
             value: fallbackValue,
             error: `Value of ${name} attribute is not a valid number`,
+          };
+        }
+
+        if (attribute.integer && !Number.isInteger(value)) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be an integer`,
+          };
+        }
+
+        if (attribute.min !== undefined && value < attribute.min) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be at least ${attribute.min}`,
+          };
+        }
+
+        if (attribute.positive && value <= 0) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be greater than 0`,
+          };
+        }
+
+        if (attribute.odd && value % 2 !== 1) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be an odd integer`,
           };
         }
 

@@ -258,6 +258,56 @@ describe('LivePic web component', () => {
       value: NaN,
       error: `Value of test attribute is not a valid number`,
     });
+
+    el.setAttribute('test', 'Infinity');
+    expect(el.validateAttribute(attribute)).toStrictEqual({
+      value: NaN,
+      error: `Value of test attribute is not a valid number`,
+    });
+  });
+
+  it('validates constrained number attributes', () => {
+    const el = createLivePic();
+
+    el.setAttribute('test', '1.5');
+    expect(el.validateAttribute({ name: 'test', type: 'number', integer: true })).toStrictEqual({
+      value: NaN,
+      error: `Value of test attribute must be an integer`,
+    });
+
+    el.setAttribute('test', '2');
+    expect(el.validateAttribute({ name: 'test', type: 'number', min: 3 })).toStrictEqual({
+      value: NaN,
+      error: `Value of test attribute must be at least 3`,
+    });
+
+    el.setAttribute('test', '0');
+    expect(el.validateAttribute({ name: 'test', type: 'number', positive: true })).toStrictEqual({
+      value: NaN,
+      error: `Value of test attribute must be greater than 0`,
+    });
+
+    el.setAttribute('test', '4');
+    expect(el.validateAttribute({ name: 'test', type: 'number', odd: true })).toStrictEqual({
+      value: NaN,
+      error: `Value of test attribute must be an odd integer`,
+    });
+  });
+
+  it('rejects invalid LivePic numeric attributes', () => {
+    const el = createLivePic();
+    el.setAttribute('sprite', '/sprite.webp');
+    el.setAttribute('size', '-10');
+    el.setAttribute('gridSize', '2');
+    el.setAttribute('fps', '0');
+
+    const [, errors] = el.collectOptions();
+
+    expect(errors).toEqual([
+      'Value of size attribute must be at least 1',
+      'Value of gridSize attribute must be at least 3',
+      'Value of fps attribute must be greater than 0',
+    ]);
   });
 
   it("doesn't fallback if all required attributes provided correctly", async () => {
