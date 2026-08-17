@@ -6,24 +6,50 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
 ## Use the `<live-pic>` web component
 
-- Install the package (for bundlers / ESM import):
+- Install the package:
 
   ```
   npm install livepic
   ```
 
-- Import the LivePic component:
+- If you want the `<live-pic>` element to be registered immediately, import the browser entry:
 
   ```js
-  import { LivePic } from 'livepic';
+  import 'livepic/browser';
   ```
 
-  This auto registers the `<live-pic>` custom element for use.
+- Then add the element to your markup:
 
-- Add to your markup (point to your sprite sheet):
   ```html
   <live-pic sprite="/output/AvatarSprite.webp" gridSize="15" size="150"></live-pic>
   ```
+
+- If you want to choose the tag name or register later, use the root entry:
+
+  ```js
+  import { defineLivePic, LivePic } from 'livepic';
+
+  defineLivePic();
+  ```
+
+  The root entry exports the class and `defineLivePic()` without side effects.
+
+- Pass a custom tag name if you do not want to use `<live-pic>`:
+
+  ```js
+  import { defineLivePic } from 'livepic';
+
+  defineLivePic('interactive-portrait');
+  ```
+
+  ```html
+  <interactive-portrait
+    sprite="/output/AvatarSprite.webp"
+    gridSize="15"
+    size="150"
+  ></interactive-portrait>
+  ```
+
 - Attributes:
   - `sprite`\* (string, required): URL/path to the sprite sheet.
   - `spriteSrc` alias for `sprite` attribute.
@@ -33,7 +59,7 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
   - `fps` (positive number, default `30`): Max frame updates per second.
 - Behavior: tracks mouse/touch, picks the right frame from the sprite, pauses when offscreen or when the document is hidden, assumes a square aspect ratio (wrap it with your own styles as needed).
 
-### Load from unpkg
+### Load Directly In The Browser
 
 - Drop a single module script to register the custom element globally:
 
