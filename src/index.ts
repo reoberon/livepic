@@ -11,7 +11,7 @@ export class ImageLoader {
     this.status = 'not_started';
   }
 
-  inProgress() {
+  inProgress(): boolean {
     return this.status === 'loading' || this.status === 'not_started';
   }
 
@@ -90,6 +90,20 @@ export class LivePic extends HTMLElement {
     LivePic.pointerVersion += 1;
     LivePic.startLoop();
   };
+
+  static addSharedListeners() {
+    document.addEventListener('mousemove', LivePic.handlePointerMove);
+    document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
+    window.addEventListener('resize', LivePic.handleViewportChange);
+    window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+  }
+
+  static removeSharedListeners() {
+    document.removeEventListener('mousemove', LivePic.handlePointerMove);
+    document.removeEventListener('touchmove', LivePic.handlePointerMove);
+    window.removeEventListener('resize', LivePic.handleViewportChange);
+    window.removeEventListener('scroll', LivePic.handleViewportChange);
+  }
 
   constructor() {
     super();
@@ -381,33 +395,48 @@ export class LivePic extends HTMLElement {
   updateFrame = (now = performance.now()): boolean => {
     if (!this.trackingActive) return false;
 
-    const tracksLayoutEveryFrame = this.options!.layoutTracking === 'frame';
-
+    const tracksLayoutEveryFrame = this.shouldTrackLayoutEveryFrame();
     if (tracksLayoutEveryFrame || this.rectUpdateQueued) {
       this.updateRect();
     }
 
-    if (!this.isVisible) return false;
-    const pointerX = LivePic.pointerX;
-    const pointerY = LivePic.pointerY;
-    if (pointerX === null || pointerY === null) return false;
-    if (document.visibilityState === 'hidden') return false;
+    if (!this.canUpdateFrame()) return false;
+    if (!this.frameStateChanged()) return tracksLayoutEveryFrame;
+    if (this.isThrottled(now)) return true;
 
-    // Check if position has changed before FPS throttling to avoid unnecessary lastFrameTime updates
-    const pointerVersion = LivePic.pointerVersion;
-    if (pointerVersion === this.lastPointerVersion && this.rectVersion === this.lastRectVersion)
-      return tracksLayoutEveryFrame;
-
-    if (now - this.lastFrameTime < 1000 / this.options!.fps) return true;
-    this.lastFrameTime = now;
-
-    this.$el.style.backgroundPosition = this.calculatePosition(pointerX, pointerY);
-    this.lastPointerVersion = pointerVersion;
-    this.lastRectVersion = this.rectVersion;
+    this.applyFrame(now);
     return tracksLayoutEveryFrame;
   };
 
-  calculatePosition(pointerX = LivePic.pointerX, pointerY = LivePic.pointerY) {
+  shouldTrackLayoutEveryFrame(): boolean {
+    return this.options!.layoutTracking === 'frame';
+  }
+
+  canUpdateFrame(): boolean {
+    if (!this.isVisible) return false;
+    if (document.visibilityState === 'hidden') return false;
+    return LivePic.pointerX !== null && LivePic.pointerY !== null;
+  }
+
+  frameStateChanged(): boolean {
+    return (
+      LivePic.pointerVersion !== this.lastPointerVersion ||
+      this.rectVersion !== this.lastRectVersion
+    );
+  }
+
+  isThrottled(now: number): boolean {
+    return now - this.lastFrameTime < 1000 / this.options!.fps;
+  }
+
+  applyFrame(now: number) {
+    this.lastFrameTime = now;
+    this.$el.style.backgroundPosition = this.calculatePosition(LivePic.pointerX, LivePic.pointerY);
+    this.lastPointerVersion = LivePic.pointerVersion;
+    this.lastRectVersion = this.rectVersion;
+  }
+
+  calculatePosition(pointerX = LivePic.pointerX, pointerY = LivePic.pointerY): string {
     if (pointerX === null || pointerY === null) {
       return this.$el.style.backgroundPosition;
     }
@@ -442,10 +471,7 @@ export class LivePic extends HTMLElement {
     LivePic.activeInstances.add(this);
 
     if (LivePic.activeInstances.size === 1) {
-      document.addEventListener('mousemove', LivePic.handlePointerMove);
-      document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
-      window.addEventListener('resize', LivePic.handleViewportChange);
-      window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+      LivePic.addSharedListeners();
     }
 
     LivePic.startLoop();
@@ -461,10 +487,7 @@ export class LivePic extends HTMLElement {
       return;
     }
 
-    document.removeEventListener('mousemove', LivePic.handlePointerMove);
-    document.removeEventListener('touchmove', LivePic.handlePointerMove);
-    window.removeEventListener('resize', LivePic.handleViewportChange);
-    window.removeEventListener('scroll', LivePic.handleViewportChange);
+    LivePic.removeSharedListeners();
 
     LivePic.pointerX = null;
     LivePic.pointerY = null;
