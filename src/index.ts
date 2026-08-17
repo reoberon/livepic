@@ -3,13 +3,8 @@ import { DEFAULT_TAG, DEFAULT_SIZE } from './livepic/constants.js';
 import { ATTRIBUTES } from './livepic/attributes.js';
 
 export class ImageLoader {
-  image: HTMLImageElement;
-  status: ImageLoadStatus;
-
-  constructor() {
-    this.image = new Image();
-    this.status = 'not_started';
-  }
+  image: HTMLImageElement = new Image();
+  status: ImageLoadStatus = 'not_started';
 
   inProgress(): boolean {
     return this.status === 'loading' || this.status === 'not_started';
@@ -58,21 +53,21 @@ export class ImageLoader {
 
 export class LivePic extends HTMLElement {
   $el: HTMLElement;
-  lastFrameTime: number;
-  maxDistanceX: number | null;
-  maxDistanceY: number | null;
-  rect: DOMRect | null;
-  isVisible: boolean;
-  rectUpdateQueued: boolean;
-  rectVersion: number;
-  lastRectVersion: number;
-  lastPointerVersion: number;
-  trackingActive: boolean;
-  visibilityObserver: IntersectionObserver | null;
-  options: LivePicOptions | null;
-  errors: string[];
-  sprite: ImageLoader;
-  placeholder: ImageLoader | null;
+  lastFrameTime = 0;
+  maxDistanceX: number | null = null;
+  maxDistanceY: number | null = null;
+  rect: DOMRect | null = null;
+  isVisible = false;
+  rectUpdateQueued = false;
+  rectVersion = 0;
+  lastRectVersion = -1;
+  lastPointerVersion = -1;
+  trackingActive = false;
+  visibilityObserver: IntersectionObserver | null = null;
+  options: LivePicOptions | null = null;
+  errors: string[] = [];
+  sprite = new ImageLoader();
+  placeholder: ImageLoader | null = null;
 
   static activeInstances = new Set<LivePic>();
   static rafId: number | null = null;
@@ -108,22 +103,6 @@ export class LivePic extends HTMLElement {
   constructor() {
     super();
     const shadow = this.attachShadow({ mode: 'open' });
-
-    this.lastFrameTime = 0;
-    this.maxDistanceX = null;
-    this.maxDistanceY = null;
-    this.rect = null;
-    this.isVisible = false;
-    this.rectUpdateQueued = false;
-    this.rectVersion = 0;
-    this.lastRectVersion = -1;
-    this.lastPointerVersion = -1;
-    this.trackingActive = false;
-    this.visibilityObserver = null;
-    this.options = null;
-    this.errors = [];
-    this.sprite = new ImageLoader();
-    this.placeholder = null;
 
     this.$el = document.createElement('div');
     this.$el.classList.add('livepic');
