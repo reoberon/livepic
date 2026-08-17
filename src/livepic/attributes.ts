@@ -14,4 +14,5 @@ export const ATTRIBUTES: Attribute[] = [
   { name: 'sprite', type: 'string', required: true, aliases: ['spriteSrc'] },
   { name: 'placeholder', type: 'string' },
   { name: 'fps', type: 'number', defaultValue: DEFAULT_FPS, positive: true },
+  { name: 'layoutTracking', type: 'string', defaultValue: 'static', values: ['static', 'frame'] },
 ];

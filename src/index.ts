@@ -224,7 +224,14 @@ export class LivePic extends HTMLElement {
 
     switch (type) {
       case 'string': {
-        const value = rawValue !== null ? rawValue : fallbackValue;
+        const value = rawValue !== null ? rawValue : String(fallbackValue);
+        if (attribute.values && !attribute.values.includes(value)) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be one of: ${attribute.values.join(', ')}`,
+          };
+        }
+
         return { value };
       }
 
@@ -374,7 +381,9 @@ export class LivePic extends HTMLElement {
   updateFrame = (now = performance.now()): boolean => {
     if (!this.trackingActive) return false;
 
-    if (this.rectUpdateQueued) {
+    const tracksLayoutEveryFrame = this.options!.layoutTracking === 'frame';
+
+    if (tracksLayoutEveryFrame || this.rectUpdateQueued) {
       this.updateRect();
     }
 
@@ -387,7 +396,7 @@ export class LivePic extends HTMLElement {
     // Check if position has changed before FPS throttling to avoid unnecessary lastFrameTime updates
     const pointerVersion = LivePic.pointerVersion;
     if (pointerVersion === this.lastPointerVersion && this.rectVersion === this.lastRectVersion)
-      return false;
+      return tracksLayoutEveryFrame;
 
     if (now - this.lastFrameTime < 1000 / this.options!.fps) return true;
     this.lastFrameTime = now;
@@ -395,7 +404,7 @@ export class LivePic extends HTMLElement {
     this.$el.style.backgroundPosition = this.calculatePosition(pointerX, pointerY);
     this.lastPointerVersion = pointerVersion;
     this.lastRectVersion = this.rectVersion;
-    return false;
+    return tracksLayoutEveryFrame;
   };
 
   calculatePosition(pointerX = LivePic.pointerX, pointerY = LivePic.pointerY) {

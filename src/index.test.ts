@@ -2,7 +2,7 @@ import { JSDOM } from 'jsdom';
 import { performance as nodePerformance } from 'node:perf_hooks';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
-import { Attribute } from './livepic/types.js';
+import { Attribute, LivePicOptions } from './livepic/types.js';
 
 const INVALID_URL = 'invalid-url';
 let LivePic: typeof import('./index.js').LivePic;
@@ -266,6 +266,25 @@ describe('LivePic web component', () => {
     });
   });
 
+  it('validates constrained string attributes', () => {
+    const el = createLivePic();
+    const attribute: Attribute = {
+      name: 'test',
+      type: 'string',
+      defaultValue: 'static',
+      values: ['static', 'frame'],
+    };
+
+    el.setAttribute('test', 'frame');
+    expect(el.validateAttribute(attribute)).toStrictEqual({ value: 'frame' });
+
+    el.setAttribute('test', 'always');
+    expect(el.validateAttribute(attribute)).toStrictEqual({
+      value: 'static',
+      error: `Value of test attribute must be one of: static, frame`,
+    });
+  });
+
   it('validates constrained number attributes', () => {
     const el = createLivePic();
 
@@ -493,7 +512,7 @@ describe('LivePic web component', () => {
       });
 
       const el = createLivePic();
-      el.options = { size: 100, gridSize: 5, sprite: '/img.png', fps: 60 };
+      el.options = livePicOptions();
       el.rect = new DOMRect(0, 0, 100, 100);
       el.maxDistanceX = 800;
       el.maxDistanceY = 600;
@@ -552,10 +571,9 @@ describe('LivePic web component', () => {
   });
 
   describe('calculatePosition', () => {
-    const baseOptions = { size: 100, gridSize: 5, sprite: '/sprite.webp', fps: 60 };
     const setupForCalc = () => {
       const el = createLivePic();
-      el.options = { ...baseOptions };
+      el.options = livePicOptions({ sprite: '/sprite.webp' });
       el.rect = new DOMRect(0, 0, 100, 100);
       el.maxDistanceX = 400;
       el.maxDistanceY = 300;
@@ -596,13 +614,22 @@ describe('LivePic web component', () => {
 
       const opts = el.collectOptions()[0];
 
-      expect(opts).toEqual({
+      expect(opts).toMatchObject({
         size: DEFAULT_SIZE,
         placeholder: '',
         gridSize: DEFAULT_GRID_SIZE,
         fps: DEFAULT_FPS,
         sprite: '/img.png',
       });
+    });
+
+    it('uses static layout tracking by default', () => {
+      const el = createLivePic();
+      el.setAttribute('sprite', '/img.png');
+
+      const opts = el.collectOptions()[0];
+
+      expect(opts.layoutTracking).toBe('static');
     });
 
     it('get an error message when required sprite attribute is missing', () => {
@@ -624,7 +651,7 @@ describe('LivePic web component', () => {
 
   it('skips frame update when not visible', () => {
     const el = createLivePic();
-    el.options = { size: 100, gridSize: 5, sprite: '/img.png', fps: 60 };
+    el.options = livePicOptions();
     el.rect = new DOMRect(0, 0, 100, 100);
     el.maxDistanceX = 800;
     el.maxDistanceY = 600;
@@ -637,6 +664,26 @@ describe('LivePic web component', () => {
     el.updateFrame();
 
     expect(calcSpy).not.toHaveBeenCalled();
+  });
+
+  it('refreshes geometry every frame when layoutTracking is frame', () => {
+    const el = createLivePic();
+    el.options = livePicOptions({ layoutTracking: 'frame' });
+    el.rect = new DOMRect(0, 0, 100, 100);
+    el.maxDistanceX = 800;
+    el.maxDistanceY = 600;
+    el.trackingActive = true;
+    el.isVisible = true;
+    el.$el.getBoundingClientRect = vi.fn(() => new DOMRect(700, 500, 100, 100));
+    LivePic.pointerX = 800;
+    LivePic.pointerY = 600;
+    LivePic.pointerVersion = 1;
+
+    const shouldContinue = el.updateFrame(1000);
+
+    expect(el.$el.getBoundingClientRect).toHaveBeenCalled();
+    expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+    expect(shouldContinue).toBe(true);
   });
 
   it('reacts to IntersectionObserver visibility changes', () => {
@@ -681,6 +728,17 @@ describe('LivePic web component', () => {
 function createLivePic() {
   defineLivePic();
   return new LivePic();
+}
+
+function livePicOptions(overrides: Partial<LivePicOptions> = {}): LivePicOptions {
+  return {
+    size: 100,
+    gridSize: 5,
+    sprite: '/img.png',
+    fps: 60,
+    layoutTracking: 'static',
+    ...overrides,
+  };
 }
 
 function setupDom() {

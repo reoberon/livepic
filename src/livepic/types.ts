@@ -3,6 +3,7 @@ export type LivePicOptions = {
   gridSize: number;
   sprite: string;
   fps: number;
+  layoutTracking: string;
   placeholder?: string;
 };
 
@@ -26,6 +27,7 @@ export type NumberAttribute = BaseAttribute & {
 export type StringAttribute = BaseAttribute & {
   type: 'string';
   defaultValue?: string;
+  values?: readonly string[];
 };
 
 export type Attribute = StringAttribute | NumberAttribute;

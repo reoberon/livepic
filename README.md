@@ -57,6 +57,7 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
   - `gridSize` (odd integer, minimum `3`, default `5`): Frames per side of the sprite grid (e.g., `gridSize="3"` for a 3x3 sprite).
   - `size` (positive integer, default `160`): Component width/height in px.
   - `fps` (positive number, default `30`): Max frame updates per second.
+  - `layoutTracking` (`static` or `frame`, default `static`): Set to `frame` when the element moves independently of scroll/resize, such as during CSS transforms or drag animations. This refreshes geometry every active frame.
 - Behavior: tracks mouse/touch, picks the right frame from the sprite, pauses when offscreen or when the document is hidden, assumes a square aspect ratio (wrap it with your own styles as needed).
 
 ### Load Directly In The Browser
