@@ -1,6 +1,6 @@
 import { ImageLoadStatus } from './types.js';
 
-export class ImageLoader {
+export class ImageLoadTask {
   image: HTMLImageElement = new Image();
   status: ImageLoadStatus = 'not_started';
 

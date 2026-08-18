@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ImageLoader } from './image-loader.js';
+import { ImageLoadTask } from './image-load-task.js';
 import { INVALID_IMAGE_SRC, mockImageLoading } from '../../test-utils/image-loading.js';
 
-describe('ImageLoader class', () => {
+describe('ImageLoadTask class', () => {
   beforeEach(() => {
     mockImageLoading();
   });
@@ -14,7 +14,7 @@ describe('ImageLoader class', () => {
   });
 
   it('inProgress returns correct status', () => {
-    const loader = new ImageLoader();
+    const loader = new ImageLoadTask();
     expect(loader.inProgress()).toBe(true); // not_started
 
     loader.status = 'loading';
@@ -31,7 +31,7 @@ describe('ImageLoader class', () => {
   });
 
   it('loads image successfully', async () => {
-    const loader = new ImageLoader();
+    const loader = new ImageLoadTask();
     expect(loader.status).toBe('not_started');
 
     await loader.load('/test-image.webp');
@@ -40,7 +40,7 @@ describe('ImageLoader class', () => {
   });
 
   it('handles image load failure when src not provided', async () => {
-    const loader = new ImageLoader();
+    const loader = new ImageLoadTask();
 
     await expect(loader.load('')).rejects.toBe('failed');
     expect(loader.status).toBe('failed');
@@ -48,7 +48,7 @@ describe('ImageLoader class', () => {
   });
 
   it('handles image load failure from the specified src', async () => {
-    const loader = new ImageLoader();
+    const loader = new ImageLoadTask();
 
     await expect(loader.load(INVALID_IMAGE_SRC)).rejects.toBe('failed');
     expect(loader.status).toBe('failed');
@@ -56,7 +56,7 @@ describe('ImageLoader class', () => {
   });
 
   it('aborts successfully', async () => {
-    const loader = new ImageLoader();
+    const loader = new ImageLoadTask();
     const loadPromise = loader.load('/test-image.webp');
     expect(loader.status).toBe('loading');
 
@@ -67,7 +67,7 @@ describe('ImageLoader class', () => {
   });
 
   it("doesn't abort when not in progress", () => {
-    const loader = new ImageLoader();
+    const loader = new ImageLoadTask();
     // Simulate completed state
     loader.status = 'loaded';
     loader.abort();

@@ -1,9 +1,7 @@
 import { Attribute, LivePicOptions } from './livepic/types.js';
 import { DEFAULT_TAG, DEFAULT_SIZE } from './livepic/constants.js';
 import { ATTRIBUTES } from './livepic/attributes.js';
-import { ImageLoader } from './livepic/image-loader.js';
-
-export { ImageLoader };
+import { ImageLoadTask } from './livepic/image-load-task.js';
 
 export class LivePic extends HTMLElement {
   $el: HTMLElement;
@@ -20,8 +18,8 @@ export class LivePic extends HTMLElement {
   visibilityObserver: IntersectionObserver | null = null;
   options: LivePicOptions | null = null;
   errors: string[] = [];
-  sprite = new ImageLoader();
-  placeholder: ImageLoader | null = null;
+  sprite = new ImageLoadTask();
+  placeholder: ImageLoadTask | null = null;
 
   static activeInstances = new Set<LivePic>();
   static rafId: number | null = null;
@@ -240,7 +238,7 @@ export class LivePic extends HTMLElement {
     const { placeholder: src, size } = this.options!;
     if (!src) return;
 
-    this.placeholder = new ImageLoader();
+    this.placeholder = new ImageLoadTask();
 
     this.placeholder
       .load(src)
