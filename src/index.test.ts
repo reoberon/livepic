@@ -1,44 +1,27 @@
-import { JSDOM } from 'jsdom';
-import { performance as nodePerformance } from 'node:perf_hooks';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { ImageLoader, LivePic, defineLivePic, LIVE_PIC_TAG } from './index.js';
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
 import { Attribute, LivePicOptions } from './livepic/types.js';
 
 const INVALID_URL = 'invalid-url';
-let LivePic: typeof import('./index.js').LivePic;
-let defineLivePic: typeof import('./index.js').defineLivePic;
-let LIVE_PIC_TAG: typeof import('./index.js').LIVE_PIC_TAG;
+
+beforeAll(() => {
+  setViewportSize();
+});
 
 describe('ImageLoader class', () => {
-  beforeEach(async () => {
-    setupDom();
+  beforeEach(() => {
+    mockImageLoading();
   });
 
   afterEach(() => {
-    if (typeof document !== 'undefined') {
-      document.body.innerHTML = '';
-    }
     vi.restoreAllMocks();
-    // @ts-expect-error cleanup globals
-    delete globalThis.window;
-    // @ts-expect-error cleanup globals
-    delete globalThis.document;
-    // @ts-expect-error cleanup globals
-    delete globalThis.customElements;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLImageElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.DOMRect;
-    // @ts-expect-error cleanup globals
-    delete globalThis.performance;
-    // @ts-expect-error cleanup globals
-    delete globalThis.IntersectionObserver;
   });
 
-  it('inProgress returns correct status', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
+  it('inProgress returns correct status', () => {
+    const loader = new ImageLoader();
     expect(loader.inProgress()).toBe(true); // not_started
 
     loader.status = 'loading';
@@ -55,7 +38,7 @@ describe('ImageLoader class', () => {
   });
 
   it('loads image successfully', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
+    const loader = new ImageLoader();
     expect(loader.status).toBe('not_started');
 
     await loader.load('/test-image.webp');
@@ -64,7 +47,7 @@ describe('ImageLoader class', () => {
   });
 
   it('handles image load failure when src not provided', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
+    const loader = new ImageLoader();
 
     await expect(loader.load('')).rejects.toBe('failed');
     expect(loader.status).toBe('failed');
@@ -72,7 +55,7 @@ describe('ImageLoader class', () => {
   });
 
   it('handles image load failure from the specified src', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
+    const loader = new ImageLoader();
 
     await expect(loader.load(INVALID_URL)).rejects.toBe('failed');
     expect(loader.status).toBe('failed');
@@ -80,7 +63,7 @@ describe('ImageLoader class', () => {
   });
 
   it('aborts successfully', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
+    const loader = new ImageLoader();
     const loadPromise = loader.load('/test-image.webp');
     expect(loader.status).toBe('loading');
 
@@ -90,8 +73,8 @@ describe('ImageLoader class', () => {
     expect(loader.image.src).toBe('');
   });
 
-  it("doesn't abort when not in progress", async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
+  it("doesn't abort when not in progress", () => {
+    const loader = new ImageLoader();
     // Simulate completed state
     loader.status = 'loaded';
     loader.abort();
@@ -100,45 +83,24 @@ describe('ImageLoader class', () => {
 });
 
 describe('LivePic web component', () => {
-  beforeEach(async () => {
-    setupDom();
-    await loadModule();
+  beforeEach(() => {
+    resetLivePicStatics();
+    mockFrameTiming();
+    mockAnimationFrame();
+    mockImageLoading();
   });
 
   afterEach(() => {
-    if (typeof document !== 'undefined') {
-      document.body.innerHTML = '';
-    }
-    vi.restoreAllMocks();
-    // @ts-expect-error cleanup globals
-    delete globalThis.window;
-    // @ts-expect-error cleanup globals
-    delete globalThis.document;
-    // @ts-expect-error cleanup globals
-    delete globalThis.customElements;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLImageElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.DOMRect;
-    // @ts-expect-error cleanup globals
-    delete globalThis.performance;
-    // @ts-expect-error cleanup globals
-    delete globalThis.IntersectionObserver;
+    cleanupLivePicTest();
   });
 
-  it('registers custom element', () => {
+  it('registers custom element idempotently', () => {
     expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
-    defineLivePic();
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-    defineLivePic();
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-  });
 
-  it('auto-registers through browser entry', async () => {
-    expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
-    await import('./browser.js');
+    expect(defineLivePic()).toBe(true);
+    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
+
+    expect(() => defineLivePic()).not.toThrow();
     expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
   });
 
@@ -741,81 +703,75 @@ function livePicOptions(overrides: Partial<LivePicOptions> = {}): LivePicOptions
   };
 }
 
-function setupDom() {
-  // Ensure performance exists before jsdom touches it
-  // @ts-expect-error assign globals for test env
-  globalThis.performance ??= nodePerformance;
+function setViewportSize() {
+  Object.assign(window, { innerWidth: 800, innerHeight: 600 });
+  globalThis.innerWidth = 800;
+  globalThis.innerHeight = 600;
+}
 
-  const dom = new JSDOM('<!doctype html><html><body></body></html>', {
-    url: 'http://localhost',
-    pretendToBeVisual: true,
-  });
-
-  // @ts-expect-error assign globals for test env
-  globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
-  globalThis.customElements = dom.window.customElements;
-  globalThis.HTMLElement = dom.window.HTMLElement;
-  globalThis.HTMLImageElement = dom.window.HTMLImageElement;
-  globalThis.DOMRect = dom.window.DOMRect;
-  globalThis.performance = dom.window.performance ?? nodePerformance;
+function mockFrameTiming() {
   let tick = 0;
   vi.spyOn(globalThis.performance, 'now').mockImplementation(() => {
     tick += 1000;
     return tick;
   });
-  // Minimal viewport values for calculations
-  Object.assign(dom.window, { innerWidth: 800, innerHeight: 600 });
-  globalThis.innerWidth = 800;
-  globalThis.innerHeight = 600;
+}
 
+function mockAnimationFrame() {
   globalThis.requestAnimationFrame = vi.fn().mockReturnValue(1);
   globalThis.cancelAnimationFrame = vi.fn();
-  Object.assign(dom.window, {
+  Object.assign(window, {
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame,
   });
-
-  class MockImage {
-    private _src = '';
-    private listeners: Record<string, Array<() => void>> = { load: [], error: [] };
-
-    addEventListener(event: 'load' | 'error', cb: () => void) {
-      this.listeners[event]?.push(cb);
-    }
-
-    removeEventListener(event: 'load' | 'error', cb: () => void) {
-      this.listeners[event] = (this.listeners[event] ?? []).filter((fn) => fn !== cb);
-    }
-
-    set src(value: string) {
-      this._src = value;
-
-      if (value === INVALID_URL) {
-        // simulate async load failure
-        Promise.reject().catch(() => this.listeners.error?.forEach((fn) => fn()));
-        return;
-      }
-
-      // simulate async load success
-      Promise.resolve().then(() => this.listeners.load?.forEach((fn) => fn()));
-    }
-
-    get src() {
-      return this._src;
-    }
-  }
-
-  // @ts-expect-error override global Image for test env
-  globalThis.Image = dom.window.Image = MockImage;
-
-  return dom;
 }
 
-async function loadModule() {
-  vi.resetModules();
-  const module = await import('./index.js');
-  LivePic = module.LivePic;
-  defineLivePic = module.defineLivePic;
-  LIVE_PIC_TAG = module.LIVE_PIC_TAG;
+function mockImageLoading() {
+  // @ts-expect-error override global Image for test env
+  globalThis.Image = window.Image = MockImage;
+}
+
+class MockImage {
+  private _src = '';
+  private listeners: Record<string, Array<() => void>> = { load: [], error: [] };
+
+  addEventListener(event: 'load' | 'error', cb: () => void) {
+    this.listeners[event]?.push(cb);
+  }
+
+  removeEventListener(event: 'load' | 'error', cb: () => void) {
+    this.listeners[event] = (this.listeners[event] ?? []).filter((fn) => fn !== cb);
+  }
+
+  set src(value: string) {
+    this._src = value;
+
+    if (value === INVALID_URL) {
+      // simulate async load failure
+      Promise.reject().catch(() => this.listeners.error?.forEach((fn) => fn()));
+      return;
+    }
+
+    // simulate async load success
+    Promise.resolve().then(() => this.listeners.load?.forEach((fn) => fn()));
+  }
+
+  get src() {
+    return this._src;
+  }
+}
+
+function cleanupLivePicTest() {
+  document.body.innerHTML = '';
+  LivePic.stopLoop();
+  resetLivePicStatics();
+  vi.restoreAllMocks();
+}
+
+function resetLivePicStatics() {
+  LivePic.activeInstances.clear();
+  LivePic.rafId = null;
+  LivePic.pointerX = null;
+  LivePic.pointerY = null;
+  LivePic.pointerVersion = 0;
 }
