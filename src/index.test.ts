@@ -1,85 +1,13 @@
 // @vitest-environment jsdom
 
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { ImageLoader, LivePic, defineLivePic, LIVE_PIC_TAG } from './index.js';
+import { LivePic, defineLivePic, LIVE_PIC_TAG } from './index.js';
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
 import { Attribute, LivePicOptions } from './livepic/types.js';
-
-const INVALID_URL = 'invalid-url';
+import { INVALID_IMAGE_SRC, mockImageLoading } from '../test-utils/image-loading.js';
 
 beforeAll(() => {
   setViewportSize();
-});
-
-describe('ImageLoader class', () => {
-  beforeEach(() => {
-    mockImageLoading();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('inProgress returns correct status', () => {
-    const loader = new ImageLoader();
-    expect(loader.inProgress()).toBe(true); // not_started
-
-    loader.status = 'loading';
-    expect(loader.inProgress()).toBe(true);
-
-    loader.status = 'loaded';
-    expect(loader.inProgress()).toBe(false);
-
-    loader.status = 'failed';
-    expect(loader.inProgress()).toBe(false);
-
-    loader.status = 'aborted';
-    expect(loader.inProgress()).toBe(false);
-  });
-
-  it('loads image successfully', async () => {
-    const loader = new ImageLoader();
-    expect(loader.status).toBe('not_started');
-
-    await loader.load('/test-image.webp');
-    expect(loader.status).toBe('loaded');
-    expect(loader.image.src).toContain('/test-image.webp');
-  });
-
-  it('handles image load failure when src not provided', async () => {
-    const loader = new ImageLoader();
-
-    await expect(loader.load('')).rejects.toBe('failed');
-    expect(loader.status).toBe('failed');
-    expect(loader.image.src).toBe('');
-  });
-
-  it('handles image load failure from the specified src', async () => {
-    const loader = new ImageLoader();
-
-    await expect(loader.load(INVALID_URL)).rejects.toBe('failed');
-    expect(loader.status).toBe('failed');
-    expect(loader.image.src).toBe('');
-  });
-
-  it('aborts successfully', async () => {
-    const loader = new ImageLoader();
-    const loadPromise = loader.load('/test-image.webp');
-    expect(loader.status).toBe('loading');
-
-    loader.abort();
-    await expect(loadPromise).rejects.toBe('aborted');
-    expect(loader.status).toBe('aborted');
-    expect(loader.image.src).toBe('');
-  });
-
-  it("doesn't abort when not in progress", () => {
-    const loader = new ImageLoader();
-    // Simulate completed state
-    loader.status = 'loaded';
-    loader.abort();
-    expect(loader.status).toBe('loaded');
-  });
 });
 
 describe('LivePic web component', () => {
@@ -384,7 +312,7 @@ describe('LivePic web component', () => {
 
       const el = new LivePic();
       el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', INVALID_URL);
+      el.setAttribute('placeholder', INVALID_IMAGE_SRC);
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -728,41 +656,6 @@ function mockAnimationFrame() {
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame,
   });
-}
-
-function mockImageLoading() {
-  // @ts-expect-error override global Image for test env
-  globalThis.Image = window.Image = MockImage;
-}
-
-class MockImage {
-  private _src = '';
-  private listeners: Record<string, Array<() => void>> = { load: [], error: [] };
-
-  addEventListener(event: 'load' | 'error', cb: () => void) {
-    this.listeners[event]?.push(cb);
-  }
-
-  removeEventListener(event: 'load' | 'error', cb: () => void) {
-    this.listeners[event] = (this.listeners[event] ?? []).filter((fn) => fn !== cb);
-  }
-
-  set src(value: string) {
-    this._src = value;
-
-    if (value === INVALID_URL) {
-      // simulate async load failure
-      Promise.reject().catch(() => this.listeners.error?.forEach((fn) => fn()));
-      return;
-    }
-
-    // simulate async load success
-    Promise.resolve().then(() => this.listeners.load?.forEach((fn) => fn()));
-  }
-
-  get src() {
-    return this._src;
-  }
 }
 
 function cleanupLivePicTest() {
