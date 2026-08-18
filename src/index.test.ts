@@ -327,6 +327,23 @@ describe('LivePic web component', () => {
     el.disconnectedCallback();
   });
 
+  it('loads sprite when connected by the browser lifecycle', async () => {
+    defineLivePic();
+    const el = document.createElement(LIVE_PIC_TAG) as LivePic;
+    el.setAttribute('sprite', '/sprite.webp');
+    el.setAttribute('size', '100');
+    el.setAttribute('gridSize', '5');
+    el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+    document.body.appendChild(el);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(el.sprite.status).toBe('loaded');
+    expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+    expect(el.$el.style.backgroundSize).toBe('500px 500px');
+  });
+
   it('shows error overlay without destroying structure on fallback', () => {
     const el = createLivePic();
     el.fallback('Test error');
