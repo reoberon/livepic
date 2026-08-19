@@ -281,6 +281,22 @@ describe('LivePic web component', () => {
     expect(shadowRoot.querySelector('style')).not.toBe(null);
   });
 
+  it('shows fallback and does not start tracking when sprite loading fails', async () => {
+    const el = new LivePic();
+    el.setAttribute('sprite', INVALID_IMAGE_SRC);
+    const startTrackingSpy = vi.spyOn(el, 'startTracking');
+
+    document.body.appendChild(el);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const error = el.shadowRoot!.querySelector('.error');
+    expect(error).not.toBe(null);
+    expect(error!.textContent).toBe('Sprite loading failed');
+    expect(startTrackingSpy).not.toHaveBeenCalled();
+    expect(el.sprite.status).toBe('failed');
+  });
+
   describe('placeholder loading', () => {
     it('loads placeholder and sets background image before sprite loads', async () => {
       const el = new LivePic();

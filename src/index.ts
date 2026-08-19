@@ -96,15 +96,19 @@ export class LivePic extends HTMLElement {
 
     this.initStyles();
     this.loadPlaceholder();
-    this.loadSprite()
-      .then(() => {
-        this.observeVisibility();
-        this.updateRect();
-        this.startTracking();
-      })
-      .catch(() => {
-        // Sprite loading failed, fallback already called in loadSprite()
-      });
+    void this.initialize();
+  }
+
+  private async initialize() {
+    await this.loadSprite();
+
+    if (this.sprite.status !== 'loaded') {
+      return;
+    }
+
+    this.observeVisibility();
+    this.updateRect();
+    this.startTracking();
   }
 
   collectOptions() {
@@ -253,25 +257,22 @@ export class LivePic extends HTMLElement {
 
   async loadSprite() {
     const { sprite: src, size, gridSize } = this.options!;
-    return new Promise<void>((resolve, reject) => {
-      this.sprite
-        .load(src)
-        .then(() => {
-          const placeholder = this.placeholder;
-          if (placeholder && placeholder.inProgress()) {
-            placeholder.abort();
-          }
 
-          const spriteWidth = gridSize * size;
-          this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
-          this.$el.style.backgroundImage = `url(${src})`;
-          resolve();
-        })
-        .catch(() => {
-          this.fallback('Sprite loading failed');
-          reject();
-        });
-    });
+    try {
+      await this.sprite.load(src);
+    } catch {
+      this.fallback('Sprite loading failed');
+      return;
+    }
+
+    const placeholder = this.placeholder;
+    if (placeholder && placeholder.inProgress()) {
+      placeholder.abort();
+    }
+
+    const spriteWidth = gridSize * size;
+    this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
+    this.$el.style.backgroundImage = `url(${src})`;
   }
 
   fallback(message: string) {
