@@ -323,6 +323,21 @@ describe('LivePic web component', () => {
       expect(el.$el.style.backgroundSize).toBe('500px 500px');
     });
 
+    it('aborts a pending placeholder before applying the sprite', async () => {
+      const el = new LivePic();
+      const abort = vi.fn();
+      el.options = livePicOptions({ sprite: 'sprite.webp' });
+      el.placeholder = {
+        inProgress: () => true,
+        abort,
+      } as unknown as LivePic['placeholder'];
+
+      await el.loadSprite();
+
+      expect(abort).toHaveBeenCalledOnce();
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+    });
+
     it('warns when placeholder loading fails', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -519,6 +534,15 @@ describe('LivePic web component', () => {
       LivePic.pointerY = centerY + el.maxDistanceY! / 2;
 
       expect(el.calculatePosition()).toBe('75% 75%');
+    });
+
+    it('keeps the current background position when pointer is missing', () => {
+      const el = setupForCalc();
+      el.$el.style.backgroundPosition = '25% 75%';
+      LivePic.pointerX = null;
+      LivePic.pointerY = 50;
+
+      expect(el.calculatePosition()).toBe('25% 75%');
     });
   });
 
