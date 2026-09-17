@@ -489,6 +489,35 @@ describe('LivePic web component', () => {
       expect(startTrackingSpy).not.toHaveBeenCalled();
     });
 
+    it('does not treat abort error events as image load failures', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = new LivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      document.body.removeChild(el);
+      await imageLoading.failAborts();
+
+      expect(el.placeholder?.status).toBe('aborted');
+      expect(el.sprite.status).toBe('aborted');
+      expect(el.shadowRoot!.querySelector('.error')).toBe(null);
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      document.body.appendChild(el);
+      await imageLoading.load('/placeholder.webp');
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.placeholder?.status).toBe('loaded');
+      expect(el.sprite.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.shadowRoot!.querySelector('.error')).toBe(null);
+    });
+
     it('waits for a fresh sprite load when reconnected during the initial load', async () => {
       const imageLoading = mockControlledImageLoading();
       const el = new LivePic();
@@ -927,6 +956,7 @@ function mockControlledImageLoading() {
     load: (src: string) => settle(src, 'load'),
     fail: (src: string) => settle(src, 'error'),
     settleAborts: () => settle('', 'load'),
+    failAborts: () => settle('', 'error'),
   };
 }
 

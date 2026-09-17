@@ -29,6 +29,11 @@ export class ImageLoadTask {
 
       const onError = () => {
         this.image.removeEventListener('load', onLoad);
+
+        if (this.status === 'aborted') {
+          return reject(this.status);
+        }
+
         this.image.src = '';
         this.status = 'failed';
         reject(this.status);
