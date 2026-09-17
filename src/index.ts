@@ -18,6 +18,7 @@ export class LivePic extends HTMLElement {
   visibilityObserver: IntersectionObserver | null = null;
   options: LivePicOptions | null = null;
   errors: string[] = [];
+  private connectionVersion = 0;
   sprite = new ImageLoadTask();
   placeholder: ImageLoadTask | null = null;
 
@@ -87,6 +88,7 @@ export class LivePic extends HTMLElement {
   }
 
   connectedCallback() {
+    const connectionVersion = ++this.connectionVersion;
     [this.options, this.errors] = this.collectOptions();
 
     if (this.errors.length > 0) {
@@ -96,11 +98,15 @@ export class LivePic extends HTMLElement {
 
     this.initStyles();
     this.loadPlaceholder();
-    void this.initialize();
+    void this.initialize(connectionVersion);
   }
 
-  private async initialize() {
+  private async initialize(connectionVersion: number) {
     await this.loadSprite();
+
+    if (!this.isConnected || this.connectionVersion !== connectionVersion) {
+      return;
+    }
 
     if (this.sprite.status !== 'loaded') {
       return;
@@ -242,29 +248,48 @@ export class LivePic extends HTMLElement {
     const { placeholder: src, size } = this.options!;
     if (!src) return;
 
-    this.placeholder = new ImageLoadTask();
+    const placeholder = new ImageLoadTask();
+    this.placeholder = placeholder;
 
-    this.placeholder
+    placeholder
       .load(src)
       .then(() => {
+        if (this.placeholder !== placeholder) return;
+
         this.$el.style.backgroundSize = `${size}px ${size}px`;
         this.$el.style.backgroundImage = `url(${src})`;
       })
       .catch(() => {
+        if (placeholder.status === 'aborted') return;
+
         console.warn(`Placeholder loading failed for src: ${src}`);
       });
   }
 
   async loadSprite() {
     const { sprite: src, size, gridSize } = this.options!;
+    const sprite = new ImageLoadTask();
+    this.sprite = sprite;
 
     try {
-      await this.sprite.load(src);
+      await sprite.load(src);
     } catch {
+      if (sprite.status === 'aborted' || this.sprite !== sprite) {
+        return;
+      }
+
       this.fallback('Sprite loading failed');
       return;
     }
 
+    if (this.sprite !== sprite) {
+      return;
+    }
+
+    this.applySprite(src, size, gridSize);
+  }
+
+  private applySprite(src: string, size: number, gridSize: number) {
     const placeholder = this.placeholder;
     if (placeholder && placeholder.inProgress()) {
       placeholder.abort();
@@ -296,6 +321,8 @@ export class LivePic extends HTMLElement {
 
   disconnectedCallback() {
     this.stopTracking();
+    this.placeholder?.abort();
+    this.sprite.abort();
 
     if (this.visibilityObserver) {
       this.visibilityObserver.disconnect();

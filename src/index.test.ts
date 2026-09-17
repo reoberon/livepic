@@ -338,6 +338,189 @@ describe('LivePic web component', () => {
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
     });
 
+    it('keeps the loaded placeholder visible until the sprite finishes loading', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      await imageLoading.load('/placeholder.webp');
+
+      expect(el.placeholder?.status).toBe('loaded');
+      expect(el.sprite.status).toBe('loading');
+      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
+      expect(el.$el.style.backgroundSize).toBe('100px 100px');
+
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.sprite.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('500px 500px');
+    });
+
+    it('ignores a placeholder that loads after it has been replaced', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      el.options = livePicOptions({ placeholder: '/old-placeholder.webp' });
+      el.loadPlaceholder();
+      const oldPlaceholder = el.placeholder;
+
+      el.options = livePicOptions({ placeholder: '/new-placeholder.webp', size: 200 });
+      el.loadPlaceholder();
+
+      expect(el.placeholder).not.toBe(oldPlaceholder);
+
+      await imageLoading.load('/old-placeholder.webp');
+
+      expect(el.$el.style.backgroundImage).toBe('');
+
+      await imageLoading.load('/new-placeholder.webp');
+
+      expect(el.$el.style.backgroundImage).toContain('new-placeholder.webp');
+      expect(el.$el.style.backgroundSize).toBe('200px 200px');
+    });
+
+    it('ignores a sprite that loads after it has been replaced', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      el.options = livePicOptions({ sprite: '/old-sprite.webp' });
+      const oldLoading = el.loadSprite();
+      const oldSettlement = imageLoading.load('/old-sprite.webp');
+
+      el.options = livePicOptions({ sprite: '/new-sprite.webp', size: 200 });
+      const newLoading = el.loadSprite();
+      await oldSettlement;
+      await oldLoading;
+
+      expect(el.sprite.status).toBe('loading');
+      expect(el.$el.style.backgroundImage).toBe('');
+
+      await imageLoading.load('/new-sprite.webp');
+      await newLoading;
+
+      expect(el.sprite.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('new-sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('1000px 1000px');
+    });
+
+    it('does not warn when the sprite load aborts a pending placeholder', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = new LivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await imageLoading.load('/placeholder.webp');
+
+      expect(el.placeholder?.status).toBe('aborted');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('continues to show the sprite when placeholder loading fails first', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = new LivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      await imageLoading.fail('/placeholder.webp');
+      await imageLoading.load('/sprite.webp');
+
+      expect(warnSpy).toHaveBeenCalledWith('Placeholder loading failed for src: /placeholder.webp');
+      expect(el.placeholder?.status).toBe('failed');
+      expect(el.sprite.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+    });
+
+    it('keeps the loaded placeholder behind the error overlay when sprite loading fails', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      await imageLoading.load('/placeholder.webp');
+      await imageLoading.fail('/sprite.webp');
+
+      const error = el.shadowRoot!.querySelector('.error');
+      expect(error?.textContent).toBe('Sprite loading failed');
+      expect(el.placeholder?.status).toBe('loaded');
+      expect(el.sprite.status).toBe('failed');
+      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
+    });
+
+    it('aborts pending image loads without warning or fallback when disconnected', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = new LivePic();
+      const startTrackingSpy = vi.spyOn(el, 'startTracking');
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('placeholder', '/placeholder.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      document.body.removeChild(el);
+      await imageLoading.load('/placeholder.webp');
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.placeholder?.status).toBe('aborted');
+      expect(el.sprite.status).toBe('aborted');
+      expect(el.shadowRoot!.querySelector('.error')).toBe(null);
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(startTrackingSpy).not.toHaveBeenCalled();
+    });
+
+    it('waits for a fresh sprite load when reconnected during the initial load', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      const observeVisibilitySpy = vi.spyOn(el, 'observeVisibility');
+      const startTrackingSpy = vi.spyOn(el, 'startTracking');
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.setAttribute('sprite', '/sprite.webp');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      const initialSprite = el.sprite;
+      document.body.removeChild(el);
+      document.body.appendChild(el);
+      await imageLoading.settleAborts();
+
+      expect(el.sprite).not.toBe(initialSprite);
+      expect(el.sprite.status).toBe('loading');
+      expect(el.$el.style.backgroundImage).toBe('');
+      expect(el.trackingActive).toBe(false);
+      expect(observeVisibilitySpy).not.toHaveBeenCalled();
+      expect(startTrackingSpy).not.toHaveBeenCalled();
+
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.sprite.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.trackingActive).toBe(true);
+      expect(observeVisibilitySpy).toHaveBeenCalledOnce();
+      expect(startTrackingSpy).toHaveBeenCalledOnce();
+    });
+
     it('warns when placeholder loading fails', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -696,6 +879,55 @@ function mockAnimationFrame() {
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame,
   });
+}
+
+function mockControlledImageLoading() {
+  const pending = new Map<string, ControlledImage[]>();
+
+  class ControlledImage {
+    private listeners: Record<'load' | 'error', Array<() => void>> = { load: [], error: [] };
+    private _src = '';
+
+    addEventListener(event: 'load' | 'error', cb: () => void) {
+      this.listeners[event]?.push(cb);
+    }
+
+    removeEventListener(event: 'load' | 'error', cb: () => void) {
+      this.listeners[event] = (this.listeners[event] ?? []).filter((fn) => fn !== cb);
+    }
+
+    set src(value: string) {
+      this._src = value;
+
+      const images = pending.get(value) ?? [];
+      images.push(this);
+      pending.set(value, images);
+    }
+
+    get src() {
+      return this._src;
+    }
+
+    emit(event: 'load' | 'error') {
+      this.listeners[event]?.forEach((fn) => fn());
+    }
+  }
+
+  const settle = async (src: string, event: 'load' | 'error') => {
+    pending.get(src)?.forEach((image) => image.emit(event));
+    pending.delete(src);
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+
+  // @ts-expect-error override global Image for controlled async tests
+  globalThis.Image = window.Image = ControlledImage;
+
+  return {
+    load: (src: string) => settle(src, 'load'),
+    fail: (src: string) => settle(src, 'error'),
+    settleAborts: () => settle('', 'load'),
+  };
 }
 
 function cleanupLivePicTest() {
