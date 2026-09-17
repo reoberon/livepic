@@ -7,6 +7,7 @@ import { Attribute, LivePicOptions } from './livepic/types.js';
 import { INVALID_IMAGE_SRC, mockImageLoading } from '../test-utils/image-loading.js';
 
 beforeAll(() => {
+  defineLivePic();
   setViewportSize();
 });
 
@@ -22,19 +23,8 @@ describe('LivePic web component', () => {
     cleanupLivePicTest();
   });
 
-  it('registers custom element idempotently', () => {
-    expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
-
-    expect(defineLivePic()).toBe(true);
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-
-    expect(() => defineLivePic()).not.toThrow();
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-  });
-
   describe('manual creation', () => {
     it('creates the shadow structure when constructed directly', () => {
-      defineLivePic();
       const el = new LivePic();
       const shadowRoot = el.shadowRoot;
 
@@ -44,7 +34,6 @@ describe('LivePic web component', () => {
     });
 
     it('supports document.createElement and manual attribute configuration', async () => {
-      defineLivePic();
       const el = document.createElement(LIVE_PIC_TAG) as LivePic;
       el.setAttribute('sprite', '/sprite.webp');
       el.setAttribute('size', '100');

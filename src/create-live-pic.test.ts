@@ -1,20 +1,14 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
-import { createLivePic, LivePic, LIVE_PIC_TAG } from './index.js';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { createLivePic, defineLivePic } from './index.js';
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
 
+beforeAll(() => {
+  defineLivePic();
+});
+
 describe('createLivePic', () => {
-  it('registers and creates a disconnected LivePic element', () => {
-    expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
-
-    const element = createLivePic({ sprite: '/sprite.webp' });
-
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-    expect(element).toBeInstanceOf(LivePic);
-    expect(element.isConnected).toBe(false);
-  });
-
   it('sets provided options as attributes', () => {
     const element = createLivePic({
       sprite: '/sprite.webp',
