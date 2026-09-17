@@ -34,6 +34,23 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
   The root entry exports the class and `defineLivePic()` without side effects.
 
+- To create and configure an element programmatically, use `createLivePic()`. It registers
+  the default `<live-pic>` tag when needed and returns a disconnected element that you can
+  insert into the document:
+
+  ```js
+  import { createLivePic } from 'livepic';
+
+  const livePic = createLivePic({
+    sprite: '/output/AvatarSprite.webp',
+    placeholder: '/output/LoadingPlaceholder.jpeg',
+    gridSize: 15,
+    size: 150,
+  });
+
+  document.querySelector('#gallery').append(livePic);
+  ```
+
 - Pass a custom tag name if you do not want to use `<live-pic>`:
 
   ```js

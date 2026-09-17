@@ -9,6 +9,8 @@ export type LivePicOptions = {
   placeholder?: string;
 };
 
+export type LivePicInit = Pick<LivePicOptions, 'sprite'> & Partial<Omit<LivePicOptions, 'sprite'>>;
+
 type BaseAttribute = {
   name: string;
   required?: boolean;

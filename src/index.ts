@@ -1,4 +1,4 @@
-import { Attribute, LivePicOptions } from './livepic/types.js';
+import { Attribute, LivePicInit, LivePicOptions } from './livepic/types.js';
 import { DEFAULT_TAG, DEFAULT_SIZE } from './livepic/constants.js';
 import { ATTRIBUTES } from './livepic/attributes.js';
 import { ImageLoadTask } from './livepic/image-load-task.js';
@@ -515,6 +515,22 @@ export function defineLivePic(tag = LIVE_PIC_TAG) {
   }
   return true;
 }
+
+export function createLivePic(options: LivePicInit): LivePic {
+  defineLivePic();
+
+  const element = document.createElement(LIVE_PIC_TAG) as LivePic;
+
+  for (const [name, value] of Object.entries(options)) {
+    if (value !== undefined) {
+      element.setAttribute(name, String(value));
+    }
+  }
+
+  return element;
+}
+
+export type { LivePicInit } from './livepic/types.js';
 
 function isCustomElementsAvailable() {
   return typeof window !== 'undefined' && window.customElements;
