@@ -19,7 +19,7 @@ export class LivePic extends HTMLElement {
   options: LivePicOptions | null = null;
   errors: string[] = [];
   private connectionVersion = 0;
-  sprite = new ImageLoadTask();
+  sprite: ImageLoadTask | null = null;
   placeholder: ImageLoadTask | null = null;
 
   static activeInstances = new Set<LivePic>();
@@ -108,7 +108,7 @@ export class LivePic extends HTMLElement {
       return;
     }
 
-    if (this.sprite.status !== 'loaded') {
+    if (this.sprite?.status !== 'loaded') {
       return;
     }
 
@@ -322,7 +322,7 @@ export class LivePic extends HTMLElement {
   disconnectedCallback() {
     this.stopTracking();
     this.placeholder?.abort();
-    this.sprite.abort();
+    this.sprite?.abort();
 
     if (this.visibilityObserver) {
       this.visibilityObserver.disconnect();

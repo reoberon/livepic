@@ -53,7 +53,7 @@ describe('LivePic web component', () => {
 
       document.body.appendChild(el);
 
-      await vi.waitFor(() => expect(el.sprite.status).toBe('loaded'));
+      await vi.waitFor(() => expect(el.sprite?.status).toBe('loaded'));
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
       expect(el.$el.style.backgroundSize).toBe('500px 500px');
     });
@@ -291,7 +291,7 @@ describe('LivePic web component', () => {
     expect(error).not.toBe(null);
     expect(error!.textContent).toBe('Sprite loading failed');
     expect(startTrackingSpy).not.toHaveBeenCalled();
-    expect(el.sprite.status).toBe('failed');
+    expect(el.sprite?.status).toBe('failed');
   });
 
   describe('placeholder loading', () => {
@@ -350,13 +350,13 @@ describe('LivePic web component', () => {
       await imageLoading.load('/placeholder.webp');
 
       expect(el.placeholder?.status).toBe('loaded');
-      expect(el.sprite.status).toBe('loading');
+      expect(el.sprite?.status).toBe('loading');
       expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
       expect(el.$el.style.backgroundSize).toBe('100px 100px');
 
       await imageLoading.load('/sprite.webp');
 
-      expect(el.sprite.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loaded');
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
       expect(el.$el.style.backgroundSize).toBe('500px 500px');
     });
@@ -395,13 +395,13 @@ describe('LivePic web component', () => {
       await oldSettlement;
       await oldLoading;
 
-      expect(el.sprite.status).toBe('loading');
+      expect(el.sprite?.status).toBe('loading');
       expect(el.$el.style.backgroundImage).toBe('');
 
       await imageLoading.load('/new-sprite.webp');
       await newLoading;
 
-      expect(el.sprite.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loaded');
       expect(el.$el.style.backgroundImage).toContain('new-sprite.webp');
       expect(el.$el.style.backgroundSize).toBe('1000px 1000px');
     });
@@ -443,7 +443,7 @@ describe('LivePic web component', () => {
 
       expect(warnSpy).toHaveBeenCalledWith('Placeholder loading failed for src: /placeholder.webp');
       expect(el.placeholder?.status).toBe('failed');
-      expect(el.sprite.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loaded');
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
     });
 
@@ -464,7 +464,7 @@ describe('LivePic web component', () => {
       const error = el.shadowRoot!.querySelector('.error');
       expect(error?.textContent).toBe('Sprite loading failed');
       expect(el.placeholder?.status).toBe('loaded');
-      expect(el.sprite.status).toBe('failed');
+      expect(el.sprite?.status).toBe('failed');
       expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
     });
 
@@ -486,7 +486,7 @@ describe('LivePic web component', () => {
       await imageLoading.load('/sprite.webp');
 
       expect(el.placeholder?.status).toBe('aborted');
-      expect(el.sprite.status).toBe('aborted');
+      expect(el.sprite?.status).toBe('aborted');
       expect(el.shadowRoot!.querySelector('.error')).toBe(null);
       expect(warnSpy).not.toHaveBeenCalled();
       expect(startTrackingSpy).not.toHaveBeenCalled();
@@ -508,7 +508,7 @@ describe('LivePic web component', () => {
       await imageLoading.failAborts();
 
       expect(el.placeholder?.status).toBe('aborted');
-      expect(el.sprite.status).toBe('aborted');
+      expect(el.sprite?.status).toBe('aborted');
       expect(el.shadowRoot!.querySelector('.error')).toBe(null);
       expect(warnSpy).not.toHaveBeenCalled();
 
@@ -517,7 +517,7 @@ describe('LivePic web component', () => {
       await imageLoading.load('/sprite.webp');
 
       expect(el.placeholder?.status).toBe('loaded');
-      expect(el.sprite.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loaded');
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
       expect(el.shadowRoot!.querySelector('.error')).toBe(null);
     });
@@ -536,7 +536,7 @@ describe('LivePic web component', () => {
       await imageLoading.settleAborts();
 
       expect(el.sprite).not.toBe(initialSprite);
-      expect(el.sprite.status).toBe('loading');
+      expect(el.sprite?.status).toBe('loading');
       expect(el.$el.style.backgroundImage).toBe('');
       expect(el.trackingActive).toBe(false);
       expect(observeVisibilitySpy).not.toHaveBeenCalled();
@@ -544,7 +544,7 @@ describe('LivePic web component', () => {
 
       await imageLoading.load('/sprite.webp');
 
-      expect(el.sprite.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loaded');
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
       expect(el.trackingActive).toBe(true);
       expect(observeVisibilitySpy).toHaveBeenCalledOnce();
