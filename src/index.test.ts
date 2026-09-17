@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { LivePic, defineLivePic, LIVE_PIC_TAG } from './index.js';
+import { createLivePic, LivePic, defineLivePic, LIVE_PIC_TAG } from './index.js';
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
 import { Attribute, LivePicOptions } from './livepic/types.js';
 import { INVALID_IMAGE_SRC, mockImageLoading } from '../test-utils/image-loading.js';
@@ -32,13 +32,31 @@ describe('LivePic web component', () => {
     expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
   });
 
-  it('check live-pic structure', () => {
-    const el = new LivePic();
-    const shadowRoot = el.shadowRoot;
+  describe('manual creation', () => {
+    it('creates the shadow structure when constructed directly', () => {
+      defineLivePic();
+      const el = new LivePic();
+      const shadowRoot = el.shadowRoot;
 
-    expect(shadowRoot).not.toBe(null);
-    expect(shadowRoot!.querySelector('style')).not.toBe(null);
-    expect(shadowRoot!.querySelector('.livepic')).not.toBe(null);
+      expect(shadowRoot).not.toBe(null);
+      expect(shadowRoot!.querySelector('style')).not.toBe(null);
+      expect(shadowRoot!.querySelector('.livepic')).not.toBe(null);
+    });
+
+    it('supports document.createElement and manual attribute configuration', async () => {
+      defineLivePic();
+      const el = document.createElement(LIVE_PIC_TAG) as LivePic;
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+
+      await vi.waitFor(() => expect(el.sprite.status).toBe('loaded'));
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('500px 500px');
+    });
   });
 
   it('finds alias attribute values', () => {
@@ -204,11 +222,12 @@ describe('LivePic web component', () => {
   });
 
   it('rejects invalid LivePic numeric attributes', () => {
-    const el = new LivePic();
-    el.setAttribute('sprite', '/sprite.webp');
-    el.setAttribute('size', '-10');
-    el.setAttribute('gridSize', '2');
-    el.setAttribute('fps', '0');
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      size: -10,
+      gridSize: 2,
+      fps: 0,
+    });
 
     const [, errors] = el.collectOptions();
 
@@ -220,8 +239,7 @@ describe('LivePic web component', () => {
   });
 
   it("doesn't fallback if all required attributes provided correctly", async () => {
-    const el = new LivePic();
-    el.setAttribute('sprite', '/sprite.webp');
+    const el = createLivePic({ sprite: '/sprite.webp' });
     el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
     document.body.appendChild(el);
@@ -234,10 +252,7 @@ describe('LivePic web component', () => {
   });
 
   it('applies styles from attributes', async () => {
-    const el = new LivePic();
-    el.setAttribute('sprite', '/sprite.webp');
-    el.setAttribute('size', '80');
-    el.setAttribute('gridSize', '3');
+    const el = createLivePic({ sprite: '/sprite.webp', size: 80, gridSize: 3 });
     el.getBoundingClientRect = () => new DOMRect(0, 0, 80, 80);
 
     document.body.appendChild(el);
@@ -249,23 +264,6 @@ describe('LivePic web component', () => {
     expect(el.$el.style.height).toBe('80px');
     expect(el.$el.style.backgroundSize).toBe('240px 240px');
     expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-  });
-
-  it('loads sprite when connected by the browser lifecycle', async () => {
-    defineLivePic();
-    const el = document.createElement(LIVE_PIC_TAG) as LivePic;
-    el.setAttribute('sprite', '/sprite.webp');
-    el.setAttribute('size', '100');
-    el.setAttribute('gridSize', '5');
-    el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
-
-    document.body.appendChild(el);
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    expect(el.sprite.status).toBe('loaded');
-    expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-    expect(el.$el.style.backgroundSize).toBe('500px 500px');
   });
 
   it('shows error overlay without destroying structure on fallback', () => {
@@ -282,8 +280,7 @@ describe('LivePic web component', () => {
   });
 
   it('shows fallback and does not start tracking when sprite loading fails', async () => {
-    const el = new LivePic();
-    el.setAttribute('sprite', INVALID_IMAGE_SRC);
+    const el = createLivePic({ sprite: INVALID_IMAGE_SRC });
     const startTrackingSpy = vi.spyOn(el, 'startTracking');
 
     document.body.appendChild(el);
@@ -299,11 +296,12 @@ describe('LivePic web component', () => {
 
   describe('placeholder loading', () => {
     it('loads placeholder and sets background image before sprite loads', async () => {
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       // Initialize options but call loadPlaceholder directly to test it in isolation
@@ -340,11 +338,12 @@ describe('LivePic web component', () => {
 
     it('keeps the loaded placeholder visible until the sprite finishes loading', async () => {
       const imageLoading = mockControlledImageLoading();
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -410,11 +409,12 @@ describe('LivePic web component', () => {
     it('does not warn when the sprite load aborts a pending placeholder', async () => {
       const imageLoading = mockControlledImageLoading();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -429,11 +429,12 @@ describe('LivePic web component', () => {
     it('continues to show the sprite when placeholder loading fails first', async () => {
       const imageLoading = mockControlledImageLoading();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -448,11 +449,12 @@ describe('LivePic web component', () => {
 
     it('keeps the loaded placeholder behind the error overlay when sprite loading fails', async () => {
       const imageLoading = mockControlledImageLoading();
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -469,12 +471,13 @@ describe('LivePic web component', () => {
     it('aborts pending image loads without warning or fallback when disconnected', async () => {
       const imageLoading = mockControlledImageLoading();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const el = new LivePic();
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       const startTrackingSpy = vi.spyOn(el, 'startTracking');
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -492,11 +495,12 @@ describe('LivePic web component', () => {
     it('does not treat abort error events as image load failures', async () => {
       const imageLoading = mockControlledImageLoading();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -520,12 +524,9 @@ describe('LivePic web component', () => {
 
     it('waits for a fresh sprite load when reconnected during the initial load', async () => {
       const imageLoading = mockControlledImageLoading();
-      const el = new LivePic();
+      const el = createLivePic({ sprite: '/sprite.webp', size: 100, gridSize: 5 });
       const observeVisibilitySpy = vi.spyOn(el, 'observeVisibility');
       const startTrackingSpy = vi.spyOn(el, 'startTracking');
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -553,9 +554,10 @@ describe('LivePic web component', () => {
     it('warns when placeholder loading fails', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const el = new LivePic();
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', INVALID_IMAGE_SRC);
+      const el = createLivePic({
+        sprite: '/sprite.webp',
+        placeholder: INVALID_IMAGE_SRC,
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -567,11 +569,12 @@ describe('LivePic web component', () => {
     });
 
     it('aborts placeholder loading when sprite loads', async () => {
-      const el = new LivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
@@ -585,8 +588,7 @@ describe('LivePic web component', () => {
     });
 
     it('does not load placeholder when not provided', () => {
-      const el = new LivePic();
-      el.setAttribute('sprite', '/sprite.webp');
+      const el = createLivePic({ sprite: '/sprite.webp' });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       // Initialize options before calling loadPlaceholder
@@ -689,10 +691,7 @@ describe('LivePic web component', () => {
   });
 
   it('updates background position based on pointer', async () => {
-    const el = new LivePic();
-    el.setAttribute('sprite', '/sprite.webp');
-    el.setAttribute('size', '100');
-    el.setAttribute('gridSize', '5');
+    const el = createLivePic({ sprite: '/sprite.webp', size: 100, gridSize: 5 });
     el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
     document.body.appendChild(el);
@@ -760,8 +759,7 @@ describe('LivePic web component', () => {
 
   describe('options and geometry', () => {
     it('collects defaults and required attributes', () => {
-      const el = new LivePic();
-      el.setAttribute('sprite', '/img.png');
+      const el = createLivePic({ sprite: '/img.png' });
 
       const opts = el.collectOptions()[0];
 
@@ -775,8 +773,7 @@ describe('LivePic web component', () => {
     });
 
     it('uses static layout tracking by default', () => {
-      const el = new LivePic();
-      el.setAttribute('sprite', '/img.png');
+      const el = createLivePic({ sprite: '/img.png' });
 
       const opts = el.collectOptions()[0];
 
