@@ -145,6 +145,18 @@ You can also use the `generate` script to create frames with the Replicate AI mo
 - To produce that sprite yourself, set `REPLICATE_API_TOKEN`, place `input/photo.jpeg`, and run the generate command.
 - Ensure ImageMagick’s `montage` is available if you want the sprite sheet.
 
+## Development
+
+The project uses pnpm 10. Install dependencies and run the checks with:
+
+```sh
+pnpm install
+pnpm run build
+pnpm run test:run
+pnpm run lint
+pnpm run format:check
+```
+
 ## Acknowledgements
 
 - Gaze-tracking idea inspired by https://github.com/kylan02/face_looker

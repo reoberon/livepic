@@ -121,7 +121,7 @@ export async function startPreviewServer({
 
   server.on('error', (err) => {
     if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Try another one: npm run preview -- <port>`);
+      console.error(`Port ${port} is already in use. Try another one: pnpm run preview -- <port>`);
     } else {
       console.error('Failed to start preview server:', err);
     }

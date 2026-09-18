@@ -44,12 +44,12 @@ export function getGridSizeFromArgs(rawValue?: string) {
   const parsed = Number(rawValue);
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    console.error('Grid size must be a positive integer, e.g. `npm run generate 5`');
+    console.error('Grid size must be a positive integer, e.g. `pnpm run generate 5`');
     process.exit(1);
   }
 
   if (Number(parsed) % 2 !== 1) {
-    console.error('Grid size must be an odd integer, e.g. `npm run generate 5`');
+    console.error('Grid size must be an odd integer, e.g. `pnpm run generate 5`');
     process.exit(1);
   }
 
