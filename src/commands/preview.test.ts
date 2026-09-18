@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import * as previewModule from './preview.js';
 import {
   parsePort,
   parsePositiveInteger,
@@ -95,14 +94,26 @@ describe('preview helpers', () => {
   });
 
   it('fails when preview runs without sprite', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-no-sprite-'));
+    const exitError = new Error('Preview process exited');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw exitError;
+    });
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await expect(previewModule.default(['3001'])).rejects.toThrow('exit');
+    try {
+      await expect(startPreviewServer({ port: 0, cwd: tmpDir, open: false })).rejects.toBe(
+        exitError,
+      );
 
-    const expectedPath = path.join(cwd, 'output', 'AvatarSprite.webp');
-    expect(errorSpy).toHaveBeenCalledWith(
-      `Sprite image not found at ${expectedPath}. Create it by running the generate command.`,
-    );
+      const expectedPath = path.join(tmpDir, 'output', 'AvatarSprite.webp');
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+        `Sprite image not found at ${expectedPath}. Create it by running the generate command.`,
+      );
+      expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('exits when required metadata properties are missing', async () => {
