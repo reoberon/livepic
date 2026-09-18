@@ -611,13 +611,11 @@ describe('LivePic web component', () => {
       expect(cancelAnimationFrame).toHaveBeenCalled();
     });
 
-    it('does not start multiple loops', () => {
+    it('schedules only one animation frame when started repeatedly', () => {
       LivePic.startLoop();
-      const firstRafId = LivePic.rafId;
-
       LivePic.startLoop();
 
-      expect(LivePic.rafId).toBe(firstRafId);
+      expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
 
       // Clean up
       LivePic.stopLoop();
