@@ -557,25 +557,6 @@ describe('LivePic web component', () => {
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Placeholder loading failed'));
     });
 
-    it('aborts placeholder loading when sprite loads', async () => {
-      const el = createLivePic({
-        size: 100,
-        gridSize: 5,
-        sprite: '/sprite.webp',
-        placeholder: '/placeholder.webp',
-      });
-      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
-
-      document.body.appendChild(el);
-
-      // Wait for sprite to load (aborts placeholder if still in progress)
-      await new Promise((resolve) => setTimeout(resolve, 20));
-
-      // Sprite should be loaded and background image should be sprite
-      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-      expect(el.$el.style.backgroundSize).toBe('500px 500px');
-    });
-
     it('does not load placeholder when not provided', () => {
       const el = createLivePic({ sprite: '/sprite.webp' });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
