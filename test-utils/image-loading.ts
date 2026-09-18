@@ -27,7 +27,7 @@ class MockImage {
     }
 
     // simulate async load success
-    Promise.resolve().then(() => this.listeners.load?.forEach((fn) => fn()));
+    void Promise.resolve().then(() => this.listeners.load?.forEach((fn) => fn()));
   }
 
   get src() {

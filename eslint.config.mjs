@@ -12,7 +12,7 @@ export default defineConfig(
     ignores: ['dist', 'coverage', 'node_modules', '.husky'],
   },
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'test-utils/**/*.ts'],
     languageOptions: {
       parserOptions: {
         projectService: true,
