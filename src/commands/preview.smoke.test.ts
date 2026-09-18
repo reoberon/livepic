@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { startPreviewServer } from './preview.js';
 
 describe('preview smoke', () => {
-  it('serves HTML and assets', async () => {
+  it('serves HTML and assets', async ({ skip }) => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-'));
     const outputDir = path.join(tmpDir, 'output');
     fs.mkdirSync(outputDir, { recursive: true });
@@ -18,31 +18,51 @@ describe('preview smoke', () => {
     let server: Awaited<ReturnType<typeof startPreviewServer>> | undefined;
 
     try {
-      server = await startPreviewServer({ port: 0, cwd: tmpDir, open: false, exitOnError: false });
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'EACCES' || code === 'EPERM') {
-        // Port binding not allowed in sandbox; skip.
-        return;
+      try {
+        server = await startPreviewServer({
+          port: 0,
+          cwd: tmpDir,
+          open: false,
+          exitOnError: false,
+        });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'EACCES' || code === 'EPERM') {
+          skip(`Port binding is not permitted in this environment (${code})`);
+        }
+        throw error;
       }
-      throw error;
+
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const res = await fetch(`${baseUrl}/`);
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body.startsWith('<!DOCTYPE html>')).toBe(true);
+
+      const scriptSrc = body.match(/<script type="module" src="([^"]+)"><\/script>/)?.[1] ?? '';
+      expect(scriptSrc).toBe('/dist/browser.js');
+
+      // Consume response bodies so keep-alive connections do not delay server shutdown.
+      const jsRes = await fetch(`${baseUrl}${scriptSrc}`);
+      expect(jsRes.status).toBe(200);
+      await jsRes.arrayBuffer();
+
+      const spriteRes = await fetch(`${baseUrl}/output/AvatarSprite.webp`);
+      expect(spriteRes.status).toBe(200);
+      await spriteRes.arrayBuffer();
+    } finally {
+      try {
+        if (server) {
+          await new Promise<void>((resolve, reject) => {
+            server.close((error?: Error) => (error ? reject(error) : resolve()));
+          });
+        }
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     }
-
-    const address = server.address();
-    const port = typeof address === 'object' && address ? address.port : 0;
-    const baseUrl = `http://127.0.0.1:${port}`;
-
-    const res = await fetch(`${baseUrl}/`);
-    expect(res.status).toBe(200);
-    const body = await res.text();
-    expect(body.startsWith('<!DOCTYPE html>')).toBe(true);
-
-    const jsRes = await fetch(`${baseUrl}/dist/index.js`);
-    expect(jsRes.status).toBe(200);
-
-    const spriteRes = await fetch(`${baseUrl}/output/AvatarSprite.webp`);
-    expect(spriteRes.status).toBe(200);
-
-    server.close();
   });
 });
