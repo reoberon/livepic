@@ -18,7 +18,7 @@ async function main() {
       break;
 
     case 'preview':
-      preview(args);
+      await preview(args);
       break;
 
     default:

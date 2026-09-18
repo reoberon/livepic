@@ -68,12 +68,12 @@ describe('cli', () => {
     livepic preview [port]`);
   });
 
-  it('logs error and exits when command rejects', async () => {
-    const { exitSpy, errorSpy } = await runCli(['node', 'cli', 'generate'], {
-      generateImpl: () => {
-        throw new Error('boom');
-      },
-    });
+  it.each([
+    ['generate', { generateImpl: () => Promise.reject(new Error('boom')) }],
+    ['preview', { previewImpl: () => Promise.reject(new Error('boom')) }],
+  ])('logs error and exits when %s rejects', async (command, options) => {
+    const { exitSpy, errorSpy } = await runCli(['node', 'cli', command], options);
+
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.any(Error));
     expect((errorSpy.mock.calls[0][0] as Error).message).toBe('boom');
