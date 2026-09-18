@@ -31,9 +31,9 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm run clean && tsc",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "postbuild": "chmod +x dist/cli.js",
-    "dev": "tsc -w",
+    "dev": "tsc -p tsconfig.build.json -w",
     "test": "vitest",
     "test:run": "vitest run",
     "coverage": "vitest run --coverage",

@@ -55,9 +55,10 @@ describe('preview smoke', () => {
       await spriteRes.arrayBuffer();
     } finally {
       try {
-        if (server) {
+        const runningServer = server;
+        if (runningServer) {
           await new Promise<void>((resolve, reject) => {
-            server.close((error?: Error) => (error ? reject(error) : resolve()));
+            runningServer.close((error?: Error) => (error ? reject(error) : resolve()));
           });
         }
       } finally {
