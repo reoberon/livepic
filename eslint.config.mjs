@@ -12,6 +12,18 @@ export default defineConfig(
     ignores: ['dist', 'coverage', 'node_modules', '.husky'],
   },
   {
+    files: ['src/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+    },
+  },
+  {
     files: ['src/**/*.{test,spec}.ts'],
     plugins: { vitest },
     rules: {
