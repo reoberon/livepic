@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_INPUT_FILE } from './constants.js';
 
 const makeBlob = () => {
-  const File = (globalThis as any).File;
+  const { File } = globalThis;
   if (File) return new File([], 'avatar.webp', { type: 'image/webp' });
   return new Blob([], { type: 'image/webp' });
 };
@@ -20,7 +20,7 @@ vi.mock('replicate', () => ({
   }),
 }));
 
-const execFileMock = vi.fn((...args: any[]) => {
+const execFileMock = vi.fn((...args: unknown[]) => {
   const cb = args.at(-1);
   if (typeof cb === 'function') cb(null, '', '');
 });

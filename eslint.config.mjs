@@ -28,7 +28,6 @@ export default defineConfig(
     plugins: { vitest },
     rules: {
       ...vitest.configs.recommended.rules,
-      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 );
