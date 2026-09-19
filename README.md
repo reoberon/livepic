@@ -151,11 +151,19 @@ The project uses pnpm 10. Install dependencies and run the checks with:
 
 ```sh
 pnpm install
-pnpm run build
 pnpm run test:run
 pnpm run lint
 pnpm run format:check
 ```
+
+`pnpm run test:run` runs unit tests, builds the package, and runs smoke tests against
+the fresh build. No existing `dist` directory is required.
+
+- `pnpm test` watches unit tests without building the package.
+- `pnpm run test:unit` runs unit tests once without building the package.
+- `pnpm run test:smoke` builds the package and runs smoke tests.
+- `pnpm run coverage` measures unit-test coverage without building the package;
+  smoke tests are excluded.
 
 ## Acknowledgements
 

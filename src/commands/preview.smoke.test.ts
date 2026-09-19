@@ -2,9 +2,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { startPreviewServer } from './preview.js';
+import { resolvePath, startPreviewServer } from './preview.js';
 
 describe('preview smoke', () => {
+  it('resolves dist files', () => {
+    const resolved = resolvePath({ pathname: '/dist/index.js', cwd: process.cwd() });
+    expect(resolved).toBeTruthy();
+    expect(resolved && resolved.endsWith(path.join('dist', 'index.js'))).toBe(true);
+  });
+
   it('serves HTML and assets', async ({ skip }) => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-'));
     const outputDir = path.join(tmpDir, 'output');

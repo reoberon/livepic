@@ -207,12 +207,6 @@ describe('preview helpers', () => {
     expect(extractGridMetadata(tmpDir)).toEqual({ gridSize: 5, pictureSize: 160 });
   });
 
-  it('resolves dist files', () => {
-    const resolved = resolvePath({ pathname: '/dist/index.js', cwd });
-    expect(resolved).toBeTruthy();
-    expect(resolved && resolved.endsWith(path.join('dist', 'index.js'))).toBe(true);
-  });
-
   it('resolves cwd files', () => {
     const resolved = resolvePath({ pathname: '/package.json', cwd });
     expect(resolved).toBe(path.join(cwd, 'package.json'));
