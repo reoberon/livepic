@@ -52,20 +52,34 @@ describe('cli', () => {
     expect(mockPreview).toHaveBeenCalledWith(['-p', '4000']);
   });
 
-  it('shows usage and exits 0 when no command', async () => {
-    const { exitSpy, logSpy } = await runCli(['node', 'cli']);
-    expect(exitSpy).toHaveBeenCalledWith(0);
-    expect(logSpy).toHaveBeenCalledWith(`Usage:
-    livepic generate [gridSize] [--skip-sprite]
-    livepic preview [port]`);
+  it.each([
+    { scenario: 'no command', args: [], exitCode: 0 },
+    { scenario: 'an unknown command', args: ['unknown'], exitCode: 1 },
+  ])('shows usage and exits $exitCode for $scenario', async ({ args, exitCode }) => {
+    const { exitSpy, logSpy } = await runCli(['node', 'cli', ...args]);
+
+    expect(exitSpy).toHaveBeenCalledWith(exitCode);
+    expect(logSpy).toHaveBeenCalledWith(expect.stringMatching(/usage/i));
   });
 
-  it('shows usage and exits 1 on unknown command', async () => {
-    const { exitSpy, logSpy } = await runCli(['node', 'cli', 'unknown']);
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(logSpy).toHaveBeenCalledWith(`Usage:
-    livepic generate [gridSize] [--skip-sprite]
-    livepic preview [port]`);
+  it('documents commands and supported flags in usage', async () => {
+    const { logSpy } = await runCli(['node', 'cli']);
+    const help = logSpy.mock.calls.flat().join('\n');
+
+    expect(help.split(/[^\w-]+/)).toEqual(
+      expect.arrayContaining([
+        'livepic',
+        'generate',
+        'preview',
+        '--skip-sprite',
+        '-g',
+        '--grid-size',
+        '-s',
+        '--picture-size',
+        '-p',
+        '--port',
+      ]),
+    );
   });
 
   it.each([

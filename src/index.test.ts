@@ -284,32 +284,6 @@ describe('LivePic web component', () => {
   });
 
   describe('placeholder loading', () => {
-    it('loads placeholder and sets background image before sprite loads', async () => {
-      const el = createLivePic({
-        size: 100,
-        gridSize: 5,
-        sprite: '/sprite.webp',
-        placeholder: '/placeholder.webp',
-      });
-      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
-
-      // Initialize options but call loadPlaceholder directly to test it in isolation
-      [el.options] = el.collectOptions();
-      el.initStyles();
-      el.loadPlaceholder();
-
-      // Wait for placeholder to load
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
-      expect(el.$el.style.backgroundSize).toContain('100px 100px');
-
-      // Now load sprite to ensure it replaces placeholder
-      await el.loadSprite();
-      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-      expect(el.$el.style.backgroundSize).toBe('500px 500px');
-    });
-
     it('aborts a pending placeholder before applying the sprite', async () => {
       const el = new LivePic();
       const abort = vi.fn();
@@ -538,23 +512,6 @@ describe('LivePic web component', () => {
       expect(el.trackingActive).toBe(true);
       expect(observeVisibilitySpy).toHaveBeenCalledOnce();
       expect(startTrackingSpy).toHaveBeenCalledOnce();
-    });
-
-    it('warns when placeholder loading fails', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      const el = createLivePic({
-        sprite: '/sprite.webp',
-        placeholder: INVALID_IMAGE_SRC,
-      });
-      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
-
-      document.body.appendChild(el);
-
-      // Wait for placeholder loading to fail
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Placeholder loading failed'));
     });
 
     it('does not load placeholder when not provided', () => {

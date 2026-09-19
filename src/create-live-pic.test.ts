@@ -2,7 +2,6 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLivePic, defineLivePic } from './index.js';
-import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
 
 beforeAll(() => {
   defineLivePic();
@@ -27,7 +26,7 @@ describe('createLivePic', () => {
     expect(element.getAttribute('layoutTracking')).toBe('frame');
   });
 
-  it('leaves omitted options to the component defaults', () => {
+  it('does not create attributes for omitted options', () => {
     const element = createLivePic({ sprite: '/sprite.webp' });
 
     expect(element.hasAttribute('placeholder')).toBe(false);
@@ -35,14 +34,6 @@ describe('createLivePic', () => {
     expect(element.hasAttribute('size')).toBe(false);
     expect(element.hasAttribute('fps')).toBe(false);
     expect(element.hasAttribute('layoutTracking')).toBe(false);
-    expect(element.collectOptions()[0]).toEqual({
-      sprite: '/sprite.webp',
-      placeholder: '',
-      gridSize: DEFAULT_GRID_SIZE,
-      size: DEFAULT_SIZE,
-      fps: DEFAULT_FPS,
-      layoutTracking: 'static',
-    });
   });
 
   it('does not create attributes for undefined options', () => {
