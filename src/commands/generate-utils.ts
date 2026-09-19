@@ -8,6 +8,14 @@ import { GenerateContext } from './types.js';
 
 const execFileAsync = promisify(execFile);
 const SKIP_SPRITE_FLAG = '--skip-sprite';
+export const TERMINAL_KEY = {
+  CTRL_C: '\u0003',
+  ENTER: '\r',
+  ARROW_LEFT: '\u001b[D',
+  ARROW_UP: '\u001b[A',
+  ARROW_RIGHT: '\u001b[C',
+  ARROW_DOWN: '\u001b[B',
+} as const;
 
 let renderedLines = 0;
 
@@ -56,69 +64,158 @@ export function getGridSizeFromArgs(rawValue?: string) {
   return parsed;
 }
 
-export async function promptForConfirmation(message: string) {
-  if (!process.stdin.isTTY) {
-    if (process.env.LIVEPIC_AUTO_CONFIRM !== undefined) {
-      logWithNewLine(`${message} [auto-confirmed via LIVEPIC_AUTO_CONFIRM]`);
-      return true;
+export function renderOptions(message: string, options: readonly string[], selected: number) {
+  const display = options
+    .map((option, index) => (index === selected ? `[${option}]` : ` ${option} `))
+    .join('  ');
+
+  process.stdout.write(`\r${message} ${display}`);
+}
+
+type OptionInputHandlers = {
+  onExit: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
+  onSubmit: () => void;
+};
+
+type ConfirmationInput = {
+  readonly isTTY?: boolean;
+  setRawMode?: (enabled: boolean) => unknown;
+  resume: () => unknown;
+  pause: () => unknown;
+  on: (event: 'data', handler: (data: Buffer) => void) => unknown;
+  off: (event: 'data', handler: (data: Buffer) => void) => unknown;
+};
+
+type InteractiveConfirmationInput = ConfirmationInput & {
+  readonly isTTY: true;
+  setRawMode: (enabled: boolean) => unknown;
+};
+
+type ConfirmationSetup =
+  | { type: 'resolved'; result: boolean; output: string }
+  | { type: 'interactive'; input: InteractiveConfirmationInput };
+
+export function handleOptionInput(data: Buffer, handlers: OptionInputHandlers) {
+  const key = data.toString();
+
+  switch (key) {
+    case TERMINAL_KEY.CTRL_C:
+      handlers.onExit();
+      return;
+
+    case TERMINAL_KEY.ARROW_LEFT:
+    case TERMINAL_KEY.ARROW_UP:
+      handlers.onPrevious();
+      return;
+
+    case TERMINAL_KEY.ARROW_RIGHT:
+    case TERMINAL_KEY.ARROW_DOWN:
+      handlers.onNext();
+      return;
+
+    case TERMINAL_KEY.ENTER:
+      handlers.onSubmit();
+      return;
+  }
+}
+
+function isInteractiveInput(input: ConfirmationInput): input is InteractiveConfirmationInput {
+  return input.isTTY === true && typeof input.setRawMode === 'function';
+}
+
+function getConfirmationSetup(
+  message: string,
+  input: ConfirmationInput,
+  autoConfirm: boolean,
+): ConfirmationSetup {
+  if (!input.isTTY) {
+    if (autoConfirm) {
+      return {
+        type: 'resolved',
+        result: true,
+        output: `${message} [auto-confirmed via LIVEPIC_AUTO_CONFIRM]`,
+      };
     }
-    logWithNewLine(
-      'Non-interactive session detected. Set LIVEPIC_AUTO_CONFIRM to proceed without prompts.',
-    );
-    return false;
+
+    return {
+      type: 'resolved',
+      result: false,
+      output:
+        'Non-interactive session detected. Set LIVEPIC_AUTO_CONFIRM to proceed without prompts.',
+    };
+  }
+
+  if (!isInteractiveInput(input)) {
+    return {
+      type: 'resolved',
+      result: false,
+      output: `Interactive confirmation is unavailable: stdin.setRawMode must be a function, received ${typeof input.setRawMode}.`,
+    };
+  }
+
+  return { type: 'interactive', input };
+}
+
+function startInteractiveInput(
+  input: InteractiveConfirmationInput,
+  handleData: (data: Buffer) => void,
+) {
+  input.setRawMode(true);
+  input.resume();
+  input.on('data', handleData);
+}
+
+function stopInteractiveInput(
+  input: InteractiveConfirmationInput,
+  handleData: (data: Buffer) => void,
+) {
+  input.setRawMode(false);
+  input.pause();
+  input.off('data', handleData);
+}
+
+export async function promptForConfirmation(
+  message: string,
+  input: ConfirmationInput = process.stdin,
+) {
+  const setup = getConfirmationSetup(
+    message,
+    input,
+    process.env.LIVEPIC_AUTO_CONFIRM !== undefined,
+  );
+
+  if (setup.type === 'resolved') {
+    logWithNewLine(setup.output);
+    return setup.result;
   }
 
   const options = ['Yes', 'No'];
   let selected = 0;
 
-  const render = () => {
-    const display = options
-      .map((option, index) => (index === selected ? `[${option}]` : ` ${option} `))
-      .join('  ');
-
-    process.stdout.write(`\r${message} ${display}`);
-  };
-
   return new Promise<boolean>((resolve) => {
     const handleData = (data: Buffer) => {
-      const key = data.toString();
-
-      if (key === '\u0003') {
-        process.exit();
-      }
-
-      const moveLeft = key === '\u001b[D' || key === '\u001b[A';
-      const moveRight = key === '\u001b[C' || key === '\u001b[B';
-
-      if (moveLeft) {
-        selected = (selected + options.length - 1) % options.length;
-        render();
-        return;
-      }
-
-      if (moveRight) {
-        selected = (selected + 1) % options.length;
-        render();
-        return;
-      }
-
-      if (key === '\r') {
-        cleanup();
-        process.stdout.write('\n');
-        resolve(selected === 0);
-      }
+      handleOptionInput(data, {
+        onExit: () => process.exit(),
+        onPrevious: () => {
+          selected = (selected + options.length - 1) % options.length;
+          renderOptions(message, options, selected);
+        },
+        onNext: () => {
+          selected = (selected + 1) % options.length;
+          renderOptions(message, options, selected);
+        },
+        onSubmit: () => {
+          stopInteractiveInput(setup.input, handleData);
+          process.stdout.write('\n');
+          resolve(selected === 0);
+        },
+      });
     };
 
-    const cleanup = () => {
-      process.stdin.setRawMode?.(false);
-      process.stdin.pause();
-      process.stdin.off('data', handleData);
-    };
-
-    process.stdin.setRawMode?.(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleData);
-    render();
+    startInteractiveInput(setup.input, handleData);
+    renderOptions(message, options, selected);
   });
 }
 
