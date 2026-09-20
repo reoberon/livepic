@@ -34,9 +34,10 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
   The root entry exports the class and `defineLivePic()` without side effects.
 
-- To create and configure an element programmatically, use `createLivePic()`. It registers
-  the default `<live-pic>` tag when needed and returns a disconnected element that you can
-  insert into the document:
+- To create and configure an element programmatically, use `createLivePic()`. It uses the
+  tag registered with `defineLivePic()`, or registers the default `<live-pic>` tag if no tag
+  has been registered yet. It returns a disconnected element that you can insert into the
+  document:
 
   ```js
   import { createLivePic } from 'livepic';
@@ -58,6 +59,14 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
   defineLivePic('interactive-portrait');
   ```
+
+  Subsequent `createLivePic()` calls create `<interactive-portrait>` elements. Register
+  the custom tag before calling the factory; importing `livepic/browser` automatically
+  registers the default tag.
+
+  Calling `defineLivePic()` again with the same tag is safe. Once registered, the tag
+  cannot be changed: requesting another name throws an error. Calling `defineLivePic()`
+  without an argument requests the default `live-pic` tag.
 
   ```html
   <interactive-portrait

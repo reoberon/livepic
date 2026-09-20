@@ -11,6 +11,7 @@ describe('createLivePic registration', () => {
 
     expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
     expect(element).toBeInstanceOf(LivePic);
+    expect(element.localName).toBe(LIVE_PIC_TAG);
     expect(element.isConnected).toBe(false);
   });
 });

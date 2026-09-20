@@ -508,18 +508,27 @@ export class LivePic extends HTMLElement {
 
 export const LIVE_PIC_TAG = DEFAULT_TAG;
 
+let registeredTag: string | undefined;
+
 export function defineLivePic(tag = LIVE_PIC_TAG) {
   if (!isCustomElementsAvailable()) return false;
+  if (registeredTag !== undefined && registeredTag !== tag) {
+    throw new Error(
+      `Cannot register LivePic with tag "${tag}"; expected the already registered tag "${registeredTag}".`,
+    );
+  }
   if (!customElements.get(tag)) {
     customElements.define(tag, LivePic);
+    registeredTag = tag;
   }
   return true;
 }
 
 export function createLivePic(options: LivePicInit): LivePic {
-  defineLivePic();
+  const tag = registeredTag ?? LIVE_PIC_TAG;
+  defineLivePic(tag);
 
-  const element = document.createElement(LIVE_PIC_TAG) as LivePic;
+  const element = document.createElement(tag) as LivePic;
 
   for (const [name, value] of Object.entries(options)) {
     if (value !== undefined) {
