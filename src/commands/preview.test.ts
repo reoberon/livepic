@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   parsePort,
   parsePositiveInteger,
@@ -74,23 +74,19 @@ describe('preview helpers', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('fails on invalid flagged values', () => {
+  it.each([
+    { flag: '--grid-size', value: '0', message: 'Invalid grid size: 0' },
+    { flag: '-s', value: '', message: 'Invalid picture size: ' },
+    { flag: '--port', value: '70000', message: 'Invalid port: 70000' },
+  ])('fails on invalid value for $flag', ({ flag, value, message }) => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('exit');
     });
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    expect(() => parsePreviewArgs(['--grid-size', '0'])).toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('Invalid grid size: 0');
-    errorSpy.mockClear();
-
-    expect(() => parsePreviewArgs(['-s', ''])).toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('Invalid picture size: ');
-    errorSpy.mockClear();
-
-    expect(() => parsePreviewArgs(['--port', '70000'])).toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('Invalid port: 70000');
-    expect(exitSpy).toHaveBeenCalledTimes(3);
+    expect(() => parsePreviewArgs([flag, value])).toThrow('exit');
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(message);
+    expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
   });
 
   it('fails when preview runs without sprite', async () => {
@@ -133,78 +129,100 @@ describe('preview helpers', () => {
     );
   });
 
-  it('exits on invalid gridSize or pictureSize', async () => {
+  it.each([
+    {
+      scenario: 'gridSize is not positive',
+      gridSize: 0,
+      pictureSize: 160,
+      message: 'gridSize must be a positive integer.',
+    },
+    {
+      scenario: 'gridSize is even',
+      gridSize: 4,
+      pictureSize: 160,
+      message: 'gridSize must be an odd integer.',
+    },
+    {
+      scenario: 'pictureSize is not positive',
+      gridSize: 5,
+      pictureSize: 0,
+      message: 'pictureSize must be a positive integer.',
+    },
+  ])('exits when $scenario', async ({ gridSize, pictureSize, message }) => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-invalid-'));
-    fs.mkdirSync(path.join(tmpDir, 'output'), { recursive: true });
-    fs.writeFileSync(path.join(tmpDir, 'output', 'AvatarSprite.webp'), Buffer.from([0]));
-
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    await expect(
-      startPreviewServer({
-        port: 0,
-        cwd: tmpDir,
-        open: false,
-        gridSize: 0,
-        pictureSize: 160,
-        exitOnError: false,
-      }),
-    ).rejects.toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('gridSize must be a positive integer.');
-    errorSpy.mockClear();
-
-    await expect(
-      startPreviewServer({
-        port: 0,
-        cwd: tmpDir,
-        open: false,
-        gridSize: 4,
-        pictureSize: 160,
-        exitOnError: false,
-      }),
-    ).rejects.toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('gridSize must be an odd integer.');
-    errorSpy.mockClear();
-
-    await expect(
-      startPreviewServer({
-        port: 0,
-        cwd: tmpDir,
-        open: false,
-        gridSize: 5,
-        pictureSize: 0,
-        exitOnError: false,
-      }),
-    ).rejects.toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('pictureSize must be a positive integer.');
-  });
-
-  it('extracts grid metadata or exits with error', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-meta-'));
-    const metaPath = path.join(tmpDir, 'output', 'sprite.json');
-
+    const exitError = new Error('Preview process exited');
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('exit');
+      throw exitError;
     });
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    expect(() => extractGridMetadata(tmpDir)).toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith(
-      `Sprite metadata not found at ${metaPath}. Make sure to have a valid sprite.json or provide required properties via CLI.`,
-    );
+    try {
+      fs.mkdirSync(path.join(tmpDir, 'output'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'output', 'AvatarSprite.webp'), Buffer.from([0]));
 
-    fs.mkdirSync(path.dirname(metaPath), { recursive: true });
-    fs.writeFileSync(metaPath, '{bad json');
-    errorSpy.mockClear();
-    expect(() => extractGridMetadata(tmpDir)).toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith(
-      `Failed to read sprite metadata at ${metaPath}. Make sure it is a valid JSON file.`,
-    );
+      await expect(
+        startPreviewServer({
+          port: 0,
+          cwd: tmpDir,
+          open: false,
+          gridSize,
+          pictureSize,
+          exitOnError: false,
+        }),
+      ).rejects.toBe(exitError);
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(message);
+      expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
-    fs.writeFileSync(metaPath, JSON.stringify({ gridSize: 5, pictureSize: 160 }));
-    expect(extractGridMetadata(tmpDir)).toEqual({ gridSize: 5, pictureSize: 160 });
+  describe('extractGridMetadata', () => {
+    let tmpDir: string;
+    let metaPath: string;
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-meta-'));
+      metaPath = path.join(tmpDir, 'output', 'sprite.json');
+      fs.mkdirSync(path.dirname(metaPath), { recursive: true });
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('exits when metadata is missing', () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('exit');
+      });
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => extractGridMetadata(tmpDir)).toThrow('exit');
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+        `Sprite metadata not found at ${metaPath}. Make sure to have a valid sprite.json or provide required properties via CLI.`,
+      );
+      expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    it('exits when metadata contains invalid JSON', () => {
+      fs.writeFileSync(metaPath, '{bad json');
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('exit');
+      });
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => extractGridMetadata(tmpDir)).toThrow('exit');
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+        `Failed to read sprite metadata at ${metaPath}. Make sure it is a valid JSON file.`,
+      );
+      expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    it('extracts grid metadata from valid JSON', () => {
+      fs.writeFileSync(metaPath, JSON.stringify({ gridSize: 5, pictureSize: 160 }));
+
+      expect(extractGridMetadata(tmpDir)).toEqual({ gridSize: 5, pictureSize: 160 });
+    });
   });
 
   it('resolves cwd files', () => {

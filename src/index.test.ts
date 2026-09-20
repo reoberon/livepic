@@ -182,32 +182,74 @@ describe('LivePic web component', () => {
     });
   });
 
-  it('validates constrained number attributes', () => {
+  it.each([
+    {
+      scenario: 'accepts an integer',
+      options: { integer: true },
+      value: '2',
+      expected: { value: 2 },
+    },
+    {
+      scenario: 'rejects a non-integer',
+      options: { integer: true },
+      value: '1.5',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be an integer',
+      },
+    },
+    {
+      scenario: 'accepts the minimum value',
+      options: { min: 3 },
+      value: '3',
+      expected: { value: 3 },
+    },
+    {
+      scenario: 'rejects a value below the minimum',
+      options: { min: 3 },
+      value: '2',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be at least 3',
+      },
+    },
+    {
+      scenario: 'accepts a positive value',
+      options: { positive: true },
+      value: '0.5',
+      expected: { value: 0.5 },
+    },
+    {
+      scenario: 'rejects zero as a positive value',
+      options: { positive: true },
+      value: '0',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be greater than 0',
+      },
+    },
+    {
+      scenario: 'accepts an odd value',
+      options: { odd: true },
+      value: '5',
+      expected: { value: 5 },
+    },
+    {
+      scenario: 'rejects an even value',
+      options: { odd: true },
+      value: '4',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be an odd integer',
+      },
+    },
+  ])('$scenario', ({ options, value, expected }) => {
     const el = new LivePic();
 
-    el.setAttribute('test', '1.5');
-    expect(el.validateAttribute({ name: 'test', type: 'number', integer: true })).toStrictEqual({
-      value: NaN,
-      error: `Value of test attribute must be an integer`,
-    });
-
-    el.setAttribute('test', '2');
-    expect(el.validateAttribute({ name: 'test', type: 'number', min: 3 })).toStrictEqual({
-      value: NaN,
-      error: `Value of test attribute must be at least 3`,
-    });
-
-    el.setAttribute('test', '0');
-    expect(el.validateAttribute({ name: 'test', type: 'number', positive: true })).toStrictEqual({
-      value: NaN,
-      error: `Value of test attribute must be greater than 0`,
-    });
-
-    el.setAttribute('test', '4');
-    expect(el.validateAttribute({ name: 'test', type: 'number', odd: true })).toStrictEqual({
-      value: NaN,
-      error: `Value of test attribute must be an odd integer`,
-    });
+    el.setAttribute('test', value);
+    expect(el.validateAttribute({ name: 'test', type: 'number', ...options })).toStrictEqual(
+      expected,
+    );
   });
 
   it('rejects invalid LivePic numeric attributes', () => {
