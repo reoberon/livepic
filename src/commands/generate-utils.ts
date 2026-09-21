@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import readline from 'node:readline';
 import { DEFAULT_GRID_SIZE, DEFAULT_INPUT_FILE } from './constants.js';
 import { GenerateContext } from './types.js';
+import { parseGridSize } from './grid-size.js';
 
 const execFileAsync = promisify(execFile);
 const SKIP_SPRITE_FLAG = '--skip-sprite';
@@ -49,19 +50,7 @@ export function parseArgs(args: string[]) {
 export function getGridSizeFromArgs(rawValue?: string) {
   if (!rawValue) return DEFAULT_GRID_SIZE;
 
-  const parsed = Number(rawValue);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    console.error('Grid size must be a positive integer, e.g. `pnpm run generate 5`');
-    process.exit(1);
-  }
-
-  if (Number(parsed) % 2 !== 1) {
-    console.error('Grid size must be an odd integer, e.g. `pnpm run generate 5`');
-    process.exit(1);
-  }
-
-  return parsed;
+  return parseGridSize(rawValue);
 }
 
 export function renderOptions(message: string, options: readonly string[], selected: number) {

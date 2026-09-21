@@ -72,10 +72,25 @@ describe('generate command helpers', () => {
   it('runs generation flow and writes output file', async () => {
     const { default: runGenerate } = await import('./generate.js');
 
-    await runGenerate(['1', '--skip-sprite']);
+    await runGenerate(['3', '--skip-sprite']);
 
     const files = fs.readdirSync(outputDir);
     expect(files.some((f) => f.endsWith('.webp'))).toBe(true);
+  });
+
+  it('rejects a single-cell grid before generating images', async () => {
+    const exitError = new Error('process.exit(1)');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw exitError;
+    });
+    const { default: runGenerate } = await import('./generate.js');
+
+    await expect(runGenerate(['1'])).rejects.toBe(exitError);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(execFileMock).not.toHaveBeenCalled();
+    expect(fs.existsSync(outputDir)).toBe(false);
   });
 
   it('invokes montage with generated frames and sprite output settings when not skipping', async () => {

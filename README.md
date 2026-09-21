@@ -123,7 +123,7 @@ You can also use the `generate` script to create frames with the Replicate AI mo
   npx livepic generate [gridSize] [--skip-sprite]
   ```
 
-  - `gridSize` must be a positive odd integer (default `5`); `5x5` produces 25 frames.
+  - `gridSize` must be an odd integer, minimum `3` (default `5`); `5x5` produces 25 frames.
   - Prompts confirm Replicate spend and sprite build. Set `LIVEPIC_AUTO_CONFIRM=1` in CI to auto-accept.
   - `--skip-sprite` (or `LIVEPIC_SKIP_SPRITE=1`) skips sprite assembly.
   - Uses the Replicate model `fofr/expression-editor` under the hood: https://replicate.com/fofr/expression-editor
@@ -143,7 +143,7 @@ You can also use the `generate` script to create frames with the Replicate AI mo
   ```
 
   Arguments:
-  - `gridSize` (`-g`, `--grid-size`) - number of pictures per side in a sprite; must be a positive odd integer (use `5` for a `5x5` sprite). If not provided, it is read from `sprite.json`.
+  - `gridSize` (`-g`, `--grid-size`) - number of pictures per side in a sprite; must be an odd integer, minimum `3` (use `5` for a `5x5` sprite). If not provided, it is read from `sprite.json` and validated using the same rules.
   - `pictureSize` (`-s`, `--picture-size`) - size of the component in pixels. If not provided, it is read from `sprite.json`.
   - `port` (`-p`, `--port`) - port to run the preview server. Default: `3000`; auto-opens your browser. If you provide a single positional argument, it is treated as the port for convenience.
   - Expects `output/AvatarSprite.webp` and `output/sprite.json` in the current working directory.

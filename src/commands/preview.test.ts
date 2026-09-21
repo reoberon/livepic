@@ -48,6 +48,11 @@ describe('preview helpers', () => {
   });
 
   it('parses preview args with flags', () => {
+    expect(parsePreviewArgs(['-g', '3'])).toEqual({ gridSize: 3 });
+    expect(parsePreviewArgs(['--grid-size=3', '-s', '160'])).toEqual({
+      gridSize: 3,
+      pictureSize: 160,
+    });
     expect(parsePreviewArgs(['-g', '5', '--picture-size', '160', '--port', '4000'])).toEqual({
       gridSize: 5,
       pictureSize: 160,
@@ -75,7 +80,22 @@ describe('preview helpers', () => {
   });
 
   it.each([
-    { flag: '--grid-size', value: '0', message: 'Invalid grid size: 0' },
+    {
+      flag: '--grid-size',
+      value: '0',
+      message: 'Invalid grid size: 0. Expected an odd integer >= 3.',
+    },
+    { flag: '-g', value: '1', message: 'Invalid grid size: 1. Expected an odd integer >= 3.' },
+    {
+      flag: '--grid-size',
+      value: '2',
+      message: 'Invalid grid size: 2. Expected an odd integer >= 3.',
+    },
+    {
+      flag: '--grid-size',
+      value: '4',
+      message: 'Invalid grid size: 4. Expected an odd integer >= 3.',
+    },
     { flag: '-s', value: '', message: 'Invalid picture size: ' },
     { flag: '--port', value: '70000', message: 'Invalid port: 70000' },
   ])('fails on invalid value for $flag', ({ flag, value, message }) => {
@@ -134,13 +154,26 @@ describe('preview helpers', () => {
       scenario: 'gridSize is not positive',
       gridSize: 0,
       pictureSize: 160,
-      message: 'gridSize must be a positive integer.',
+      message: 'Invalid grid size: 0. Expected an odd integer >= 3.',
     },
     {
       scenario: 'gridSize is even',
       gridSize: 4,
       pictureSize: 160,
-      message: 'gridSize must be an odd integer.',
+      message: 'Invalid grid size: 4. Expected an odd integer >= 3.',
+    },
+    {
+      scenario: 'gridSize is 1 in arguments',
+      gridSize: 1,
+      pictureSize: 160,
+      message: 'Invalid grid size: 1. Expected an odd integer >= 3.',
+    },
+    {
+      scenario: 'gridSize is 1 in sprite.json',
+      gridSize: 1,
+      pictureSize: 160,
+      fromMetadata: true,
+      message: 'Invalid grid size: 1. Expected an odd integer >= 3.',
     },
     {
       scenario: 'pictureSize is not positive',
@@ -148,7 +181,7 @@ describe('preview helpers', () => {
       pictureSize: 0,
       message: 'pictureSize must be a positive integer.',
     },
-  ])('exits when $scenario', async ({ gridSize, pictureSize, message }) => {
+  ])('exits when $scenario', async ({ gridSize, pictureSize, message, fromMetadata }) => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-invalid-'));
     const exitError = new Error('Preview process exited');
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
@@ -159,14 +192,20 @@ describe('preview helpers', () => {
     try {
       fs.mkdirSync(path.join(tmpDir, 'output'), { recursive: true });
       fs.writeFileSync(path.join(tmpDir, 'output', 'AvatarSprite.webp'), Buffer.from([0]));
+      if (fromMetadata) {
+        fs.writeFileSync(
+          path.join(tmpDir, 'output', 'sprite.json'),
+          JSON.stringify({ gridSize, pictureSize }),
+        );
+      }
 
       await expect(
         startPreviewServer({
           port: 0,
           cwd: tmpDir,
           open: false,
-          gridSize,
-          pictureSize,
+          gridSize: fromMetadata ? undefined : gridSize,
+          pictureSize: fromMetadata ? undefined : pictureSize,
           exitOnError: false,
         }),
       ).rejects.toBe(exitError);

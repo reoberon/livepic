@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import { DEFAULT_PORT, SPRITE_FILE } from './constants.js';
+import { parseGridSize } from './grid-size.js';
 import {
   contentType,
   renderHtml,
@@ -78,13 +79,7 @@ export async function startPreviewServer({
     process.exit(1);
   }
 
-  if (!Number.isInteger(gridSize) || gridSize <= 0) {
-    console.error('gridSize must be a positive integer.');
-    process.exit(1);
-  } else if (gridSize % 2 !== 1) {
-    console.error('gridSize must be an odd integer.');
-    process.exit(1);
-  }
+  gridSize = parseGridSize(gridSize);
 
   if (!Number.isInteger(pictureSize) || pictureSize <= 0) {
     console.error('pictureSize must be a positive integer.');
@@ -201,12 +196,7 @@ export function parsePreviewArgs(args: string[]): PreviewCliArgs {
     switch (key) {
       case '--grid-size':
       case '-g': {
-        const gridSize = parsePositiveInteger(value);
-        if (gridSize === null) {
-          console.error(`Invalid grid size: ${value}`);
-          process.exit(1);
-        }
-        result.gridSize = gridSize;
+        result.gridSize = parseGridSize(value);
         break;
       }
 
