@@ -176,15 +176,6 @@ export function parsePositiveInteger(raw: string | number | undefined) {
 }
 
 export function parsePreviewArgs(args: string[]): PreviewCliArgs {
-  if (args.length === 1) {
-    const port = parsePort(args[0]);
-    if (port === null) {
-      console.error(`Invalid port: ${args[0]}`);
-      process.exit(1);
-    }
-    return { port };
-  }
-
   const result: PreviewCliArgs = {};
 
   for (let i = 0; i < args.length; i += 1) {
@@ -223,6 +214,14 @@ export function parsePreviewArgs(args: string[]): PreviewCliArgs {
       }
 
       default:
+        if (args.length === 1) {
+          const port = parsePort(arg);
+          if (port === null) {
+            console.error(`Invalid port: ${arg}`);
+            process.exit(1);
+          }
+          result.port = port;
+        }
         break;
     }
   }

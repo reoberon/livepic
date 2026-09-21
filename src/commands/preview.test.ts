@@ -68,6 +68,24 @@ describe('preview helpers', () => {
     expect(parsePreviewArgs(['4000'])).toEqual({ port: 4000 });
   });
 
+  it.each([
+    { arg: '--grid-size=3', expected: { gridSize: 3 } },
+    { arg: '-g=3', expected: { gridSize: 3 } },
+    { arg: '--picture-size=160', expected: { pictureSize: 160 } },
+    { arg: '-s=160', expected: { pictureSize: 160 } },
+    { arg: '--port=4000', expected: { port: 4000 } },
+    { arg: '-p=4000', expected: { port: 4000 } },
+  ])('parses a single named preview arg: $arg', ({ arg, expected }) => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('Unexpected process exit');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(parsePreviewArgs([arg])).toEqual(expected);
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
   it('parses preview args with flags', () => {
     expect(parsePreviewArgs(['-g', '3'])).toEqual({ gridSize: 3 });
     expect(parsePreviewArgs(['--grid-size=3', '-s', '160'])).toEqual({
@@ -90,14 +108,40 @@ describe('preview helpers', () => {
     });
   });
 
-  it('fails on invalid single positional port', () => {
+  it.each(['abc', '-1', '65536', '4000=abc', '--unknown=3'])(
+    'rejects an unrecognized single argument as an invalid positional port: %s',
+    (arg) => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('exit');
+      });
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => parsePreviewArgs([arg])).toThrow('exit');
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(`Invalid port: ${arg}`);
+      expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+    },
+  );
+
+  it.each([
+    {
+      arg: '--grid-size=4',
+      message: 'Invalid grid size: 4. Expected an odd integer >= 3.',
+    },
+    { arg: '--picture-size=0', message: 'Invalid picture size: 0' },
+    { arg: '--port=70000', message: 'Invalid port: 70000' },
+    {
+      arg: '--grid-size',
+      message: 'Invalid grid size: undefined. Expected an odd integer >= 3.',
+    },
+  ])('reports the option-specific error for a single argument: $arg', ({ arg, message }) => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('exit');
     });
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => parsePreviewArgs(['abc'])).toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('Invalid port: abc');
-    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    expect(() => parsePreviewArgs([arg])).toThrow('exit');
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(message);
+    expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
   });
 
   it.each([
