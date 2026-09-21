@@ -1,4 +1,6 @@
 import path from 'node:path';
+import * as http from 'node:http';
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   parsePort,
@@ -8,13 +10,32 @@ import {
   startPreviewServer,
   extractGridMetadata,
 } from './preview.js';
-import fs from 'node:fs';
+import * as fs from 'node:fs';
 import os from 'node:os';
+
+vi.mock('node:http', { spy: true });
+vi.mock('node:fs', { spy: true });
 
 const cwd = process.cwd();
 
+class FakeOccupiedPortServer extends EventEmitter {
+  readonly error = Object.assign(new Error('Port 4000 is already in use'), {
+    code: 'EADDRINUSE',
+  });
+
+  readonly listen = vi.fn(() => {
+    this.emit('error', this.error);
+    return this;
+  });
+}
+
+class FakePreviewFileSystem {
+  readonly existsSync = vi.fn(() => true);
+}
+
 describe('preview helpers', () => {
   afterEach(() => {
+    vi.resetAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -130,6 +151,29 @@ describe('preview helpers', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it('suggests the livepic CLI command when the preview port is already in use', async () => {
+    const server = new FakeOccupiedPortServer();
+    const fileSystem = new FakePreviewFileSystem();
+    vi.spyOn(http, 'createServer').mockReturnValue(server as unknown as http.Server);
+    vi.spyOn(fs, 'existsSync').mockImplementation(fileSystem.existsSync);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(
+      startPreviewServer({
+        port: 4000,
+        cwd,
+        open: false,
+        gridSize: 5,
+        pictureSize: 160,
+        exitOnError: false,
+      }),
+    ).rejects.toBe(server.error);
+
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      'Port 4000 is already in use. Try another one: livepic preview <port>',
+    );
   });
 
   it('exits when required metadata properties are missing', async () => {
