@@ -540,6 +540,7 @@ export function createLivePic(options: LivePicInit): LivePic {
 }
 
 export type { LivePicInit } from './livepic/types.js';
+export { ImageLoadTask as ImageLoader } from './livepic/image-load-task.js';
 
 function isCustomElementsAvailable() {
   return typeof window !== 'undefined' && window.customElements;
