@@ -86,6 +86,22 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
   - `layoutTracking` (`static` or `frame`, default `static`): Set to `frame` when the element moves independently of scroll/resize, such as during CSS transforms or drag animations. This refreshes geometry every active frame.
 - Behavior: tracks mouse/touch, picks the right frame from the sprite, pauses when offscreen or when the document is hidden, assumes a square aspect ratio (wrap it with your own styles as needed).
 
+### Grid compatibility and migration from v1.3.0
+
+**Breaking change:** `gridSize` must now be an odd integer of at least `3` in both
+the web component and the CLI. The component no longer accepts even grids, including
+third-party 4x4 sprites previously accepted in v1.3.0. Both the component and the CLI
+now reject `gridSize=1`.
+
+Even-sized sprite grids were never intended to be supported and were not tested.
+Explicit support could be implemented in a future release if there is demand, but
+it is not currently planned or guaranteed.
+
+Regenerate or replace affected sprites with a compatible grid, such as 3x3 or 5x5,
+and set `gridSize` to match the actual number of frames per side. Changing the
+attribute alone does not convert an existing sprite sheet. When using the CLI
+preview, ensure that `sprite.json` also describes the replacement sprite correctly.
+
 ### Load Directly In The Browser
 
 - Drop a single module script to register the custom element globally:
