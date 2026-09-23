@@ -4,7 +4,7 @@ import { Attribute, LivePicLayoutTracking } from './types.js';
 const LAYOUT_TRACKING_VALUES: readonly LivePicLayoutTracking[] = ['static', 'frame'];
 
 export const ATTRIBUTES: Attribute[] = [
-  { name: 'size', type: 'number', defaultValue: DEFAULT_SIZE, integer: true, min: 1 },
+  { name: 'size', type: 'number', defaultValue: DEFAULT_SIZE, positive: true },
   {
     name: 'gridSize',
     type: 'number',

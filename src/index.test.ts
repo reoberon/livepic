@@ -263,10 +263,28 @@ describe('LivePic web component', () => {
     const [, errors] = el.collectOptions();
 
     expect(errors).toEqual([
-      'Value of size attribute must be at least 1',
+      'Value of size attribute must be greater than 0',
       'Value of gridSize attribute must be at least 3',
       'Value of fps attribute must be greater than 0',
     ]);
+  });
+
+  it.each([
+    ['0', 'Value of size attribute must be greater than 0'],
+    ['-10', 'Value of size attribute must be greater than 0'],
+    ['-0.5', 'Value of size attribute must be greater than 0'],
+    ['NaN', 'Value of size attribute is not a valid number'],
+    ['Infinity', 'Value of size attribute is not a valid number'],
+    ['-Infinity', 'Value of size attribute is not a valid number'],
+    ['1e309', 'Value of size attribute is not a valid number'],
+  ])('rejects invalid component size %s', (size, error) => {
+    const el = createLivePic({ sprite: '/sprite.webp' });
+    el.setAttribute('size', size);
+
+    const [options, errors] = el.collectOptions();
+
+    expect(options.size).toBe(DEFAULT_SIZE);
+    expect(errors).toEqual([error]);
   });
 
   it("doesn't fallback if all required attributes provided correctly", async () => {
@@ -282,18 +300,22 @@ describe('LivePic web component', () => {
     expect(shadowRoot.querySelector('.error')).toBe(null);
   });
 
-  it('applies styles from attributes', async () => {
-    const el = createLivePic({ sprite: '/sprite.webp', size: 80, gridSize: 3 });
+  it.each([
+    { size: 80, dimension: '80px', backgroundSize: '240px 240px' },
+    { size: 120.5, dimension: '120.5px', backgroundSize: '361.5px 361.5px' },
+    { size: 0.5, dimension: '0.5px', backgroundSize: '1.5px 1.5px' },
+  ])('applies styles for size $size', async ({ size, dimension, backgroundSize }) => {
+    const el = createLivePic({ sprite: '/sprite.webp', size, gridSize: 3 });
+    expect(el.collectOptions()).toEqual([expect.objectContaining({ size }), []]);
     el.getBoundingClientRect = () => new DOMRect(0, 0, 80, 80);
 
     document.body.appendChild(el);
 
-    // Wait for sprite load to apply sprite sizing/background
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() => expect(el.sprite?.status).toBe('loaded'));
 
-    expect(el.$el.style.width).toBe('80px');
-    expect(el.$el.style.height).toBe('80px');
-    expect(el.$el.style.backgroundSize).toBe('240px 240px');
+    expect(el.$el.style.width).toBe(dimension);
+    expect(el.$el.style.height).toBe(dimension);
+    expect(el.$el.style.backgroundSize).toBe(backgroundSize);
     expect(el.$el.style.backgroundImage).toContain('sprite.webp');
   });
 
