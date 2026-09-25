@@ -77,12 +77,12 @@ describe('LivePic web component', () => {
     }
 
     el.validateAttribute(attribute);
-    expect(console.warn).not.toBeCalled();
+    expect(console.warn).not.toHaveBeenCalled();
 
     el.setAttribute('test', 'yo');
 
     el.validateAttribute(attribute);
-    expect(console.warn).toBeCalledWith(
+    expect(console.warn).toHaveBeenCalledWith(
       `The "test" attribute is deprecated. Please use "newtest" instead.`,
     );
   });
@@ -100,7 +100,7 @@ describe('LivePic web component', () => {
     el.setAttribute('oldattr', 'somevalue');
 
     el.validateAttribute(attribute);
-    expect(console.warn).toBeCalledWith(
+    expect(console.warn).toHaveBeenCalledWith(
       `The "oldattr" attribute is deprecated. Check documentation for more information.`,
     );
   });
