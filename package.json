@@ -42,6 +42,7 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "postbuild": "chmod +x dist/cli.js",
     "dev": "tsc -p tsconfig.build.json -w",
+    "preview:demo": "pnpm run build && node scripts/preview-demo.mjs",
     "test": "vitest --project unit",
     "test:unit": "vitest run --project unit",
     "test:smoke": "pnpm run build && vitest run --project smoke",

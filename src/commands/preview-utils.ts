@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { SPRITE_FILE, SPRITE_META } from './constants.js';
+import { SPRITE_META } from './constants.js';
 
 export function contentType(filePath: string) {
   const ext = path.extname(filePath).toLowerCase();
@@ -55,10 +55,6 @@ export function renderHtml(params: { gridSize: number; pictureSize: number; spri
     <live-pic gridSize="${gridSize}" size="${pictureSize}" sprite="${sprite}"></live-pic>
   </body>
 </html>`;
-}
-
-export function spriteFilePath(cwd: string) {
-  return path.join(cwd, SPRITE_FILE);
 }
 
 export function spriteMetaPath(cwd: string) {

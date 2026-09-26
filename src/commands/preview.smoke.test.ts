@@ -72,4 +72,110 @@ describe('preview smoke', () => {
       }
     }
   });
+
+  it('serves the included demo sprite without generated output', async ({ skip }) => {
+    let server: Awaited<ReturnType<typeof startPreviewServer>> | undefined;
+
+    try {
+      try {
+        server = await startPreviewServer({
+          port: 0,
+          cwd: process.cwd(),
+          open: false,
+          gridSize: 25,
+          pictureSize: 150,
+          spriteFile: 'docs/assets/AvatarSprite.webp',
+          exitOnError: false,
+        });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'EACCES' || code === 'EPERM') {
+          skip(`Port binding is not permitted in this environment (${code})`);
+        }
+        throw error;
+      }
+
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const htmlResponse = await fetch(baseUrl);
+      expect(htmlResponse.status).toBe(200);
+      const html = await htmlResponse.text();
+      expect(html).toContain('sprite="/docs/assets/AvatarSprite.webp"');
+      expect(html).toContain('gridSize="25" size="150"');
+      expect(html).toContain('src="/dist/browser.js"');
+
+      const spriteResponse = await fetch(`${baseUrl}/docs/assets/AvatarSprite.webp`);
+      expect(spriteResponse.status).toBe(200);
+      expect(spriteResponse.headers.get('content-type')).toBe('image/webp');
+      await spriteResponse.arrayBuffer();
+
+      const browserResponse = await fetch(`${baseUrl}/dist/browser.js`);
+      expect(browserResponse.status).toBe(200);
+      await browserResponse.arrayBuffer();
+    } finally {
+      const runningServer = server;
+      if (runningServer) {
+        await new Promise<void>((resolve, reject) => {
+          runningServer.close((error?: Error) => (error ? reject(error) : resolve()));
+        });
+      }
+    }
+  });
+
+  it('serves a sprite under dist whose filename contains URL special characters', async ({
+    skip,
+  }) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-sprite-url-'));
+    const spriteFile = 'dist/Avatar#&%Sprite.webp';
+    const spritePath = path.join(tmpDir, spriteFile);
+    fs.mkdirSync(path.dirname(spritePath), { recursive: true });
+    fs.writeFileSync(spritePath, Buffer.from([1, 2, 3]));
+
+    let server: Awaited<ReturnType<typeof startPreviewServer>> | undefined;
+
+    try {
+      try {
+        server = await startPreviewServer({
+          port: 0,
+          cwd: tmpDir,
+          open: false,
+          gridSize: 3,
+          pictureSize: 120,
+          spriteFile,
+          exitOnError: false,
+        });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'EACCES' || code === 'EPERM') {
+          skip(`Port binding is not permitted in this environment (${code})`);
+        }
+        throw error;
+      }
+
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const html = await (await fetch(baseUrl)).text();
+      const spriteUrl = html.match(/sprite="([^"]+)"/)?.[1] ?? '';
+      expect(spriteUrl).toBe('/dist/Avatar%23%26%25Sprite.webp');
+
+      const spriteResponse = await fetch(`${baseUrl}${spriteUrl}`);
+      expect(spriteResponse.status).toBe(200);
+      expect(Buffer.from(await spriteResponse.arrayBuffer())).toEqual(Buffer.from([1, 2, 3]));
+    } finally {
+      try {
+        const runningServer = server;
+        if (runningServer) {
+          await new Promise<void>((resolve, reject) => {
+            runningServer.close((error?: Error) => (error ? reject(error) : resolve()));
+          });
+        }
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    }
+  });
 });

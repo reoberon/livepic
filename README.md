@@ -181,6 +181,10 @@ pnpm run lint
 pnpm run format:check
 ```
 
+To preview the locally built component with the included demo sprite, run
+`pnpm run preview:demo`. It opens the preview at `http://127.0.0.1:3000/` without
+generating a sprite or using the CDN.
+
 `pnpm run test:run` runs unit tests, builds the package, and runs smoke tests against
 the fresh build. No existing `dist` directory is required.
 

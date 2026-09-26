@@ -6,13 +6,7 @@ import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import { DEFAULT_PORT, SPRITE_FILE } from './constants.js';
 import { parseGridSize } from './grid-size.js';
-import {
-  contentType,
-  renderHtml,
-  safeJoin,
-  spriteFilePath,
-  spriteMetaPath,
-} from './preview-utils.js';
+import { contentType, renderHtml, safeJoin, spriteMetaPath } from './preview-utils.js';
 
 const execAsync = promisify(exec);
 
@@ -45,6 +39,7 @@ export async function startPreviewServer({
   open,
   gridSize,
   pictureSize,
+  spriteFile = SPRITE_FILE,
   exitOnError = true,
   host = '127.0.0.1',
 }: {
@@ -53,10 +48,15 @@ export async function startPreviewServer({
   open: boolean;
   gridSize?: number;
   pictureSize?: number;
+  spriteFile?: string;
   exitOnError?: boolean;
   host?: string;
 }) {
-  const spritePath = spriteFilePath(cwd);
+  const spritePath = safeJoin(cwd, spriteFile);
+
+  if (!spritePath || path.isAbsolute(spriteFile)) {
+    throw new Error(`Invalid sprite file: ${spriteFile}. Expected a relative path inside ${cwd}.`);
+  }
 
   if (!existsSync(spritePath)) {
     console.error(
@@ -64,6 +64,8 @@ export async function startPreviewServer({
     );
     process.exit(1);
   }
+
+  const spriteUrl = `/${path.relative(cwd, spritePath).split(path.sep).map(encodeURIComponent).join('/')}`;
 
   if (gridSize === undefined || pictureSize === undefined) {
     const meta = extractGridMetadata(cwd);
@@ -95,7 +97,7 @@ export async function startPreviewServer({
       const html = renderHtml({
         gridSize,
         pictureSize,
-        sprite: `/${SPRITE_FILE}`,
+        sprite: spriteUrl,
       });
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -103,7 +105,9 @@ export async function startPreviewServer({
       return;
     }
 
-    const filePath = resolvePath({ pathname, cwd });
+    const requestedSpritePath = safeJoin(cwd, pathname);
+    const filePath =
+      requestedSpritePath === spritePath ? spritePath : resolvePath({ pathname, cwd });
     if (!filePath) {
       res.statusCode = 404;
       res.end('Not found');
