@@ -66,7 +66,9 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
   Calling `defineLivePic()` again with the same tag is safe. Once registered, the tag
   cannot be changed: requesting another name throws an error. Calling `defineLivePic()`
-  without an argument requests the default `live-pic` tag.
+  without an argument requests the default `live-pic` tag. If the requested tag is
+  already registered to another constructor, `defineLivePic()` throws; choose an unused
+  tag name.
 
   ```html
   <interactive-portrait
