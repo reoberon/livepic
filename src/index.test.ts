@@ -864,37 +864,42 @@ describe('LivePic web component', () => {
     const disconnect = vi.fn();
     let ioCallback: IntersectionObserverCallback | undefined;
 
-    // @ts-expect-error override global IntersectionObserver
-    globalThis.IntersectionObserver = class {
-      constructor(cb: IntersectionObserverCallback) {
-        ioCallback = cb;
-      }
-      observe = observe;
-      disconnect = disconnect;
-      readonly root = null;
-      readonly rootMargin = '';
-      readonly thresholds: ReadonlyArray<number> = [];
-    };
-    // ensure window also sees the mock
-    globalThis.window.IntersectionObserver = globalThis.IntersectionObserver;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(cb: IntersectionObserverCallback) {
+          ioCallback = cb;
+        }
+        observe = observe;
+        disconnect = disconnect;
+        readonly root = null;
+        readonly rootMargin = '';
+        readonly thresholds: ReadonlyArray<number> = [];
+      },
+    );
 
     const el = new LivePic();
     const startSpy = vi.spyOn(el, 'startTracking');
     const stopSpy = vi.spyOn(el, 'stopTracking');
     const scheduleRectUpdateSpy = vi.spyOn(el, 'scheduleRectUpdate');
 
-    el.observeVisibility();
-    expect(observe).toHaveBeenCalledWith(el);
-    const mockObserver = el['visibilityObserver']!;
+    try {
+      el.observeVisibility();
+      expect(observe).toHaveBeenCalledWith(el);
+      const mockObserver = el['visibilityObserver']!;
 
-    ioCallback?.([{ isIntersecting: false } as IntersectionObserverEntry], mockObserver);
-    expect(el.isVisible).toBe(false);
-    expect(stopSpy).toHaveBeenCalled();
+      ioCallback?.([{ isIntersecting: false } as IntersectionObserverEntry], mockObserver);
+      expect(el.isVisible).toBe(false);
+      expect(stopSpy).toHaveBeenCalled();
 
-    ioCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], mockObserver);
-    expect(el.isVisible).toBe(true);
-    expect(scheduleRectUpdateSpy).toHaveBeenCalled();
-    expect(startSpy).toHaveBeenCalled();
+      ioCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], mockObserver);
+      expect(el.isVisible).toBe(true);
+      expect(scheduleRectUpdateSpy).toHaveBeenCalled();
+      expect(startSpy).toHaveBeenCalled();
+    } finally {
+      el.stopTracking();
+      el.visibilityObserver?.disconnect();
+    }
   });
 });
 
@@ -987,6 +992,7 @@ function cleanupLivePicTest() {
   LivePic.stopLoop();
   resetLivePicStatics();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 }
 
 function resetLivePicStatics() {
