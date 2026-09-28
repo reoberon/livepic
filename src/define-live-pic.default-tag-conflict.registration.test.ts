@@ -8,9 +8,7 @@ describe('defineLivePic default tag conflict', () => {
     createLivePic({ sprite: '/sprite.webp' });
     const tag = 'interactive-portrait';
 
-    expect
-      .soft(() => defineLivePic(tag))
-      .toThrowError(new RegExp(`(?=.*${tag})(?=.*${LIVE_PIC_TAG})`));
+    expect.soft(() => defineLivePic(tag)).toThrow(new RegExp(`(?=.*${tag})(?=.*${LIVE_PIC_TAG})`));
 
     expect(customElements.get(tag)).toBeUndefined();
     expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);

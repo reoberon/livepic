@@ -517,10 +517,16 @@ export function defineLivePic(tag = LIVE_PIC_TAG) {
       `Cannot register LivePic with tag "${tag}"; expected the already registered tag "${registeredTag}".`,
     );
   }
-  if (!customElements.get(tag)) {
-    customElements.define(tag, LivePic);
-    registeredTag = tag;
+  const existing = customElements.get(tag);
+  if (existing && existing !== LivePic) {
+    throw new Error(
+      `Cannot register LivePic with tag "${tag}": it is already registered to ${existing.name || 'an anonymous constructor'}, expected LivePic.`,
+    );
   }
+  if (!existing) {
+    customElements.define(tag, LivePic);
+  }
+  registeredTag = tag;
   return true;
 }
 

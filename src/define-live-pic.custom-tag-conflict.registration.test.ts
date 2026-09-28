@@ -9,18 +9,14 @@ describe('defineLivePic custom tag conflict', () => {
     const otherTag = 'animated-portrait';
     defineLivePic(tag);
 
-    expect
-      .soft(() => defineLivePic(otherTag))
-      .toThrowError(new RegExp(`(?=.*${tag})(?=.*${otherTag})`));
+    expect.soft(() => defineLivePic(otherTag)).toThrow(new RegExp(`(?=.*${tag})(?=.*${otherTag})`));
 
     expect(customElements.get(tag)).toBe(LivePic);
     expect(customElements.get(otherTag)).toBeUndefined();
     expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
     expect(createLivePic({ sprite: '/sprite.webp' }).localName).toBe(tag);
 
-    expect
-      .soft(() => defineLivePic())
-      .toThrowError(new RegExp(`(?=.*${tag})(?=.*${LIVE_PIC_TAG})`));
+    expect.soft(() => defineLivePic()).toThrow(new RegExp(`(?=.*${tag})(?=.*${LIVE_PIC_TAG})`));
 
     expect(customElements.get(tag)).toBe(LivePic);
     expect(customElements.get(otherTag)).toBeUndefined();
