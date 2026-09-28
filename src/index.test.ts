@@ -347,6 +347,18 @@ describe('LivePic web component', () => {
     expect(el.sprite?.status).toBe('failed');
   });
 
+  it('rejects a direct sprite load when the image fails', async () => {
+    const el = new LivePic();
+    el.options = livePicOptions({ sprite: INVALID_IMAGE_SRC });
+
+    await expect(el.loadSprite()).rejects.toThrow(
+      `Sprite loading failed for src: ${INVALID_IMAGE_SRC}`,
+    );
+
+    expect(el.shadowRoot!.querySelector('.error')?.textContent).toBe('Sprite loading failed');
+    expect(el.sprite?.status).toBe('failed');
+  });
+
   describe('placeholder loading', () => {
     it('aborts a pending placeholder before applying the sprite', async () => {
       const el = new LivePic();

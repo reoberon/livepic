@@ -107,7 +107,11 @@ export class LivePic extends HTMLElement {
   }
 
   private async initialize(connectionVersion: number) {
-    await this.loadSprite();
+    try {
+      await this.loadSprite();
+    } catch {
+      return;
+    }
 
     if (!this.isConnected || this.connectionVersion !== connectionVersion) {
       return;
@@ -278,13 +282,15 @@ export class LivePic extends HTMLElement {
 
     try {
       await sprite.load(src);
-    } catch {
+    } catch (error) {
       if (sprite.status === 'aborted' || this.sprite !== sprite) {
         return;
       }
 
       this.fallback('Sprite loading failed');
-      return;
+      throw new Error(`Sprite loading failed for src: ${src}; expected a loadable image URL`, {
+        cause: error,
+      });
     }
 
     if (this.sprite !== sprite) {
