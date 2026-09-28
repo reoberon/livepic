@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageLoadTask } from './image-load-task.js';
 import { INVALID_IMAGE_SRC, mockImageLoading } from '../../test-utils/image-loading.js';
 
+class SilentImage extends EventTarget {
+  src = '';
+}
+
 describe('ImageLoadTask class', () => {
   beforeEach(() => {
     mockImageLoading();
@@ -11,6 +15,7 @@ describe('ImageLoadTask class', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('inProgress returns correct status', () => {
@@ -55,7 +60,8 @@ describe('ImageLoadTask class', () => {
     expect(loader.image.src).toBe('');
   });
 
-  it('aborts successfully', async () => {
+  it('rejects an aborted load without an image event', async () => {
+    vi.stubGlobal('Image', SilentImage);
     const loader = new ImageLoadTask();
     const loadPromise = loader.load('/test-image.webp');
     expect(loader.status).toBe('loading');
@@ -64,7 +70,7 @@ describe('ImageLoadTask class', () => {
     await expect(loadPromise).rejects.toBe('aborted');
     expect(loader.status).toBe('aborted');
     expect(loader.image.src).toBe('');
-  });
+  }, 1000);
 
   it("doesn't abort when not in progress", () => {
     const loader = new ImageLoadTask();

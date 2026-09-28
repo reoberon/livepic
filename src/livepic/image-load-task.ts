@@ -3,6 +3,7 @@ import { ImageLoadStatus } from './types.js';
 export class ImageLoadTask {
   image: HTMLImageElement = new Image();
   status: ImageLoadStatus = 'not_started';
+  private abortLoad: (() => void) | null = null;
 
   inProgress(): boolean {
     return this.status === 'loading' || this.status === 'not_started';
@@ -17,6 +18,7 @@ export class ImageLoadTask {
       }
 
       const onLoad = () => {
+        this.abortLoad = null;
         this.image.removeEventListener('error', onError);
 
         if (this.status === 'aborted') {
@@ -28,6 +30,7 @@ export class ImageLoadTask {
       };
 
       const onError = () => {
+        this.abortLoad = null;
         this.image.removeEventListener('load', onLoad);
 
         if (this.status === 'aborted') {
@@ -41,6 +44,11 @@ export class ImageLoadTask {
 
       this.image.addEventListener('load', onLoad, { once: true });
       this.image.addEventListener('error', onError, { once: true });
+      this.abortLoad = () => {
+        this.image.removeEventListener('load', onLoad);
+        this.image.removeEventListener('error', onError);
+        reject('aborted');
+      };
 
       this.image.src = src;
     });
@@ -49,6 +57,8 @@ export class ImageLoadTask {
   abort() {
     if (this.inProgress()) {
       this.status = 'aborted';
+      this.abortLoad?.();
+      this.abortLoad = null;
       this.image.src = '';
     }
   }
