@@ -31,6 +31,9 @@ export class LivePic extends HTMLElement {
     LivePic.activeInstances.forEach((instance) => instance.scheduleRectUpdate());
     LivePic.startLoop();
   };
+  static handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') LivePic.handleViewportChange();
+  };
   static handlePointerMove = (e: MouseEvent | TouchEvent) => {
     const point = 'touches' in e ? e.touches[0] : e;
     LivePic.pointerX = point.clientX;
@@ -42,6 +45,7 @@ export class LivePic extends HTMLElement {
   static addSharedListeners() {
     document.addEventListener('mousemove', LivePic.handlePointerMove);
     document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
+    document.addEventListener('visibilitychange', LivePic.handleVisibilityChange);
     window.addEventListener('resize', LivePic.handleViewportChange);
     window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
   }
@@ -49,6 +53,7 @@ export class LivePic extends HTMLElement {
   static removeSharedListeners() {
     document.removeEventListener('mousemove', LivePic.handlePointerMove);
     document.removeEventListener('touchmove', LivePic.handlePointerMove);
+    document.removeEventListener('visibilitychange', LivePic.handleVisibilityChange);
     window.removeEventListener('resize', LivePic.handleViewportChange);
     window.removeEventListener('scroll', LivePic.handleViewportChange);
   }
