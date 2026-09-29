@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import { createReadStream, existsSync, statSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -75,6 +75,11 @@ export async function startPreviewServer({
     process.exit(1);
   }
 
+  if (!isFile(spritePath)) {
+    console.error(`Invalid sprite image at ${spritePath}. Expected a regular file.`);
+    process.exit(1);
+  }
+
   const spriteUrl = `/${path.relative(cwd, spritePath).split(path.sep).map(encodeURIComponent).join('/')}`;
 
   if (gridSize === undefined || pictureSize === undefined) {
@@ -122,8 +127,7 @@ export async function startPreviewServer({
       return;
     }
 
-    res.setHeader('Content-Type', contentType(filePath));
-    createReadStream(filePath).pipe(res);
+    serveFile(filePath, res);
   });
 
   server.on('error', (err) => {
@@ -262,11 +266,34 @@ export function resolvePath({
   cwd: string;
   spritePath: string;
 }) {
-  if (safeJoin(cwd, pathname) === spritePath) return spritePath;
+  if (safeJoin(cwd, pathname) === spritePath) return isFile(spritePath) ? spritePath : null;
   if (!previewModules.has(pathname)) return null;
 
   const candidate = safeJoin(distDir, pathname.slice('/dist/'.length));
-  return candidate && existsSync(candidate) && statSync(candidate).isFile() ? candidate : null;
+  return candidate && isFile(candidate) ? candidate : null;
+}
+
+function isFile(filePath: string) {
+  try {
+    return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function serveFile(filePath: string, res: ServerResponse) {
+  res.setHeader('Content-Type', contentType(filePath));
+  const stream = createReadStream(filePath);
+  stream.on('error', (error) => {
+    console.error(`Failed to read preview file at ${filePath}:`, error);
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
+    res.statusCode = 500;
+    res.end('Failed to read file');
+  });
+  stream.pipe(res);
 }
 
 async function openInBrowser(url: string) {

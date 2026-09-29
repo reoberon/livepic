@@ -1,6 +1,7 @@
 import path from 'node:path';
 import * as http from 'node:http';
-import { EventEmitter } from 'node:events';
+import { EventEmitter, once } from 'node:events';
+import { Readable, Writable } from 'node:stream';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   parsePort,
@@ -42,6 +43,46 @@ class FakeListeningPreviewServer extends EventEmitter {
 
 class FakePreviewFileSystem {
   readonly existsSync = vi.fn(() => true);
+  readonly statSync = vi.fn(() => new FakeFileStats());
+}
+
+class FakeFileStats {
+  isFile() {
+    return true;
+  }
+}
+
+class FakeFailingReadStream extends Readable {
+  _read() {
+    this.destroy(new Error('File became unreadable'));
+  }
+}
+
+class FakePartiallyFailingReadStream extends Readable {
+  private sentChunk = false;
+
+  _read() {
+    if (this.sentChunk) return;
+    this.sentChunk = true;
+    this.push('partial image');
+    setImmediate(() => this.destroy(new Error('File became unreadable')));
+  }
+}
+
+class FakePreviewResponse extends Writable {
+  statusCode = 200;
+  headersSent = false;
+  body = '';
+
+  setHeader() {
+    return this;
+  }
+
+  _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
+    this.body += chunk.toString();
+    this.headersSent = true;
+    callback();
+  }
 }
 
 describe('preview helpers', () => {
@@ -238,11 +279,40 @@ describe('preview helpers', () => {
     }
   });
 
+  it('rejects a directory selected as the sprite', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'livepic-preview-directory-'));
+    const spritePath = path.join(tmpDir, 'output', 'AvatarSprite.webp');
+    fs.mkdirSync(spritePath, { recursive: true });
+    const exitError = new Error('Preview process exited');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw exitError;
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(
+        startPreviewServer({ port: 0, cwd: tmpDir, open: false, gridSize: 3, pictureSize: 120 }),
+      ).rejects.toBe(exitError);
+      expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+        `Invalid sprite image at ${spritePath}. Expected a regular file.`,
+      );
+      expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+      expect(
+        resolvePath({ pathname: '/output/AvatarSprite.webp', cwd: tmpDir, spritePath }),
+      ).toBeNull();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('suggests the livepic CLI command when the preview port is already in use', async () => {
     const server = new FakeOccupiedPortServer();
     const fileSystem = new FakePreviewFileSystem();
     vi.spyOn(http, 'createServer').mockReturnValue(server as unknown as http.Server);
     vi.spyOn(fs, 'existsSync').mockImplementation(fileSystem.existsSync);
+    vi.spyOn(fs, 'statSync').mockImplementation(
+      fileSystem.statSync as unknown as typeof fs.statSync,
+    );
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await expect(
@@ -270,6 +340,9 @@ describe('preview helpers', () => {
     const fileSystem = new FakePreviewFileSystem();
     vi.spyOn(http, 'createServer').mockReturnValue(server as unknown as http.Server);
     vi.spyOn(fs, 'existsSync').mockImplementation(fileSystem.existsSync);
+    vi.spyOn(fs, 'statSync').mockImplementation(
+      fileSystem.statSync as unknown as typeof fs.statSync,
+    );
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await startPreviewServer({
@@ -283,6 +356,83 @@ describe('preview helpers', () => {
 
     expect(server.listen).toHaveBeenCalledExactlyOnceWith(4000, host, expect.any(Function));
     expect(logSpy).toHaveBeenCalledWith(`Preview server running at ${url}`);
+  });
+
+  it('returns an error response when the sprite stream fails', async () => {
+    const server = new FakeListeningPreviewServer();
+    const fileSystem = new FakePreviewFileSystem();
+    vi.spyOn(http, 'createServer').mockReturnValue(server as unknown as http.Server);
+    vi.spyOn(fs, 'existsSync').mockImplementation(fileSystem.existsSync);
+    vi.spyOn(fs, 'statSync').mockImplementation(
+      fileSystem.statSync as unknown as typeof fs.statSync,
+    );
+    vi.spyOn(fs, 'createReadStream').mockReturnValue(
+      new FakeFailingReadStream() as unknown as fs.ReadStream,
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await startPreviewServer({
+      port: 4000,
+      cwd,
+      open: false,
+      gridSize: 5,
+      pictureSize: 160,
+    });
+
+    const handler = vi.mocked(http.createServer).mock.calls[0][0];
+    expect(typeof handler).toBe('function');
+    const response = new FakePreviewResponse();
+    (handler as (req: http.IncomingMessage, res: http.ServerResponse) => void)(
+      { url: '/output/AvatarSprite.webp', headers: { host: 'localhost' } } as http.IncomingMessage,
+      response as unknown as http.ServerResponse,
+    );
+    await once(response, 'finish');
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toBe('Failed to read file');
+    expect(errorSpy).toHaveBeenCalledWith(
+      `Failed to read preview file at ${path.join(cwd, 'output', 'AvatarSprite.webp')}:`,
+      expect.any(Error),
+    );
+  });
+
+  it('destroys the response when the sprite stream fails after sending data', async () => {
+    const server = new FakeListeningPreviewServer();
+    const fileSystem = new FakePreviewFileSystem();
+    vi.spyOn(http, 'createServer').mockReturnValue(server as unknown as http.Server);
+    vi.spyOn(fs, 'existsSync').mockImplementation(fileSystem.existsSync);
+    vi.spyOn(fs, 'statSync').mockImplementation(
+      fileSystem.statSync as unknown as typeof fs.statSync,
+    );
+    vi.spyOn(fs, 'createReadStream').mockReturnValue(
+      new FakePartiallyFailingReadStream() as unknown as fs.ReadStream,
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await startPreviewServer({
+      port: 4000,
+      cwd,
+      open: false,
+      gridSize: 5,
+      pictureSize: 160,
+    });
+
+    const handler = vi.mocked(http.createServer).mock.calls[0][0];
+    expect(typeof handler).toBe('function');
+    const response = new FakePreviewResponse();
+    const endSpy = vi.spyOn(response, 'end');
+    const destroySpy = vi.spyOn(response, 'destroy');
+    (handler as (req: http.IncomingMessage, res: http.ServerResponse) => void)(
+      { url: '/output/AvatarSprite.webp', headers: { host: 'localhost' } } as http.IncomingMessage,
+      response as unknown as http.ServerResponse,
+    );
+    await once(response, 'close');
+
+    expect(response.headersSent).toBe(true);
+    expect(response.body).toBe('partial image');
+    expect(response.statusCode).toBe(200);
+    expect(destroySpy).toHaveBeenCalledExactlyOnceWith();
+    expect(endSpy).not.toHaveBeenCalled();
   });
 
   it('exits when required metadata properties are missing', async () => {
@@ -418,10 +568,11 @@ describe('preview helpers', () => {
   });
 
   it('resolves only the selected sprite from the working directory', () => {
-    const spritePath = path.join(cwd, 'output', 'AvatarSprite.webp');
-    expect(resolvePath({ pathname: '/output/AvatarSprite.webp', cwd, spritePath })).toBe(
+    const spritePath = path.join(cwd, 'docs', 'assets', 'AvatarSprite.webp');
+    expect(resolvePath({ pathname: '/docs/assets/AvatarSprite.webp', cwd, spritePath })).toBe(
       spritePath,
     );
+    expect(resolvePath({ pathname: '/output/AvatarSprite.webp', cwd, spritePath })).toBeNull();
     expect(resolvePath({ pathname: '/package.json', cwd, spritePath })).toBeNull();
     expect(resolvePath({ pathname: '/.env', cwd, spritePath })).toBeNull();
     expect(resolvePath({ pathname: '/output/sprite.json', cwd, spritePath })).toBeNull();
