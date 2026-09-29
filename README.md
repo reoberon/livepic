@@ -92,6 +92,12 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
 ### Migration from v1.3.0
 
+**Breaking change:** `LivePic.sprite` is now `ImageLoader | null`. It is `null` on a
+newly created element and is assigned when sprite loading starts after a valid
+connection. Code that reads `livePic.sprite.image` before connecting the element
+must check for `null` first (for example, `livePic.sprite?.image`). The field can
+also remain `null` if attribute validation prevents loading.
+
 The v1.3.0 README incorrectly stated that importing `LivePic` from `livepic`
 automatically registered `<live-pic>`. The root import did not register the tag in
 v1.3.0 and still does not. If you followed that example, add `import 'livepic/browser';`
