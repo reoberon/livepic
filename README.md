@@ -162,14 +162,16 @@ You can also use the `generate` script to create frames with the Replicate AI mo
 
   ```
   npx livepic preview [port]
-  npx livepic preview -g <gridSize> -s <pictureSize> -p <port>
+  npx livepic preview -g <gridSize> -s <pictureSize> -p <port> [--host <host>]
   ```
 
   Arguments:
   - `gridSize` (`-g`, `--grid-size`) - number of pictures per side in a sprite; must be an odd integer, minimum `3` (use `5` for a `5x5` sprite). If not provided, it is read from `sprite.json` and validated using the same rules.
   - `pictureSize` (`-s`, `--picture-size`) - size of the component in pixels. If not provided, it is read from `sprite.json`.
   - `port` (`-p`, `--port`) - port to run the preview server. Default: `3000`; auto-opens your browser. If you provide a single positional argument, it is treated as the port for convenience.
+  - `host` (`--host`) - address to bind the preview server. Default: `127.0.0.1`; use `0.0.0.0` to make it reachable from outside a container or remote machine.
   - Expects `output/AvatarSprite.webp` and `output/sprite.json` in the current working directory.
+  - Serves the selected sprite and browser modules only; other files in the working directory are not available through the preview server.
 
 ## What to remember
 

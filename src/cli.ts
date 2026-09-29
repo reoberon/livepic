@@ -25,7 +25,7 @@ async function main() {
       console.log(`Usage:
     livepic generate [gridSize] [--skip-sprite]
     livepic preview [port]
-    livepic preview [-g <gridSize>] [-s <pictureSize>] [-p <port>]
+    livepic preview [-g <gridSize>] [-s <pictureSize>] [-p <port>] [--host <host>]
 
 Generate arguments:
     gridSize                        Number of cells per grid side (odd integer >= 3, default 5)
@@ -33,7 +33,8 @@ Generate arguments:
 Preview options:
     -g, --grid-size <gridSize>        Number of cells per grid side (odd integer >= 3)
     -s, --picture-size <pictureSize>  Cell size in pixels (positive integer)
-    -p, --port <port>                Server port (1024-65535)`);
+    -p, --port <port>                Server port (1024-65535)
+    --host <host>                    Bind address (default 127.0.0.1)`);
       process.exit(command ? 1 : 0);
   }
 }

@@ -29,6 +29,17 @@ class FakeOccupiedPortServer extends EventEmitter {
   });
 }
 
+class FakeListeningPreviewServer extends EventEmitter {
+  readonly listen = vi.fn((_port: number, _host: string, callback: () => void) => {
+    callback();
+    return this;
+  });
+
+  address() {
+    return { port: 4000 };
+  }
+}
+
 class FakePreviewFileSystem {
   readonly existsSync = vi.fn(() => true);
 }
@@ -69,12 +80,36 @@ describe('preview helpers', () => {
   });
 
   it.each([
+    ['4000', '--host', '0.0.0.0'],
+    ['--host', '0.0.0.0', '4000'],
+  ])('combines a positional port with host: %s %s %s', (...args) => {
+    expect(parsePreviewArgs(args)).toEqual({ port: 4000, host: '0.0.0.0' });
+  });
+
+  it.each([
+    { args: ['70000', '--host', '0.0.0.0'], port: '70000' },
+    { args: ['--host', '0.0.0.0', '70000'], port: '70000' },
+    { args: ['-1', '--host', '0.0.0.0'], port: '-1' },
+    { args: ['--host', '0.0.0.0', 'abc'], port: 'abc' },
+  ])('rejects invalid positional port $port alongside host', ({ args, port }) => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('exit');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(() => parsePreviewArgs(args)).toThrow('exit');
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(`Invalid port: ${port}`);
+    expect(exitSpy).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it.each([
     { arg: '--grid-size=3', expected: { gridSize: 3 } },
     { arg: '-g=3', expected: { gridSize: 3 } },
     { arg: '--picture-size=160', expected: { pictureSize: 160 } },
     { arg: '-s=160', expected: { pictureSize: 160 } },
     { arg: '--port=4000', expected: { port: 4000 } },
     { arg: '-p=4000', expected: { port: 4000 } },
+    { arg: '--host=0.0.0.0', expected: { host: '0.0.0.0' } },
   ])('parses a single named preview arg: $arg', ({ arg, expected }) => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('Unexpected process exit');
@@ -95,6 +130,10 @@ describe('preview helpers', () => {
     expect(parsePreviewArgs(['-g', '5', '--picture-size', '160', '--port', '4000'])).toEqual({
       gridSize: 5,
       pictureSize: 160,
+      port: 4000,
+    });
+    expect(parsePreviewArgs(['--host', '0.0.0.0', '-p', '4000'])).toEqual({
+      host: '0.0.0.0',
       port: 4000,
     });
     expect(parsePreviewArgs(['--grid-size=7', '-s', '200', '-p', '5000'])).toEqual({
@@ -129,6 +168,8 @@ describe('preview helpers', () => {
     },
     { arg: '--picture-size=0', message: 'Invalid picture size: 0' },
     { arg: '--port=70000', message: 'Invalid port: 70000' },
+    { arg: '--host=', message: 'Invalid host: . Expected a hostname or IP address.' },
+    { arg: '--host', message: 'Invalid host: undefined. Expected a hostname or IP address.' },
     {
       arg: '--grid-size',
       message: 'Invalid grid size: undefined. Expected an odd integer >= 3.',
@@ -218,6 +259,30 @@ describe('preview helpers', () => {
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
       'Port 4000 is already in use. Try another one: livepic preview <port>',
     );
+  });
+
+  it.each([
+    { host: '0.0.0.0', url: 'http://127.0.0.1:4000/' },
+    { host: '::', url: 'http://[::1]:4000/' },
+    { host: '::1', url: 'http://[::1]:4000/' },
+  ])('binds to $host and logs a usable URL', async ({ host, url }) => {
+    const server = new FakeListeningPreviewServer();
+    const fileSystem = new FakePreviewFileSystem();
+    vi.spyOn(http, 'createServer').mockReturnValue(server as unknown as http.Server);
+    vi.spyOn(fs, 'existsSync').mockImplementation(fileSystem.existsSync);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await startPreviewServer({
+      port: 4000,
+      cwd,
+      open: false,
+      gridSize: 5,
+      pictureSize: 160,
+      host,
+    });
+
+    expect(server.listen).toHaveBeenCalledExactlyOnceWith(4000, host, expect.any(Function));
+    expect(logSpy).toHaveBeenCalledWith(`Preview server running at ${url}`);
   });
 
   it('exits when required metadata properties are missing', async () => {
@@ -352,13 +417,22 @@ describe('preview helpers', () => {
     });
   });
 
-  it('resolves cwd files', () => {
-    const resolved = resolvePath({ pathname: '/package.json', cwd });
-    expect(resolved).toBe(path.join(cwd, 'package.json'));
+  it('resolves only the selected sprite from the working directory', () => {
+    const spritePath = path.join(cwd, 'output', 'AvatarSprite.webp');
+    expect(resolvePath({ pathname: '/output/AvatarSprite.webp', cwd, spritePath })).toBe(
+      spritePath,
+    );
+    expect(resolvePath({ pathname: '/package.json', cwd, spritePath })).toBeNull();
+    expect(resolvePath({ pathname: '/.env', cwd, spritePath })).toBeNull();
+    expect(resolvePath({ pathname: '/output/sprite.json', cwd, spritePath })).toBeNull();
   });
 
   it('rejects traversal outside cwd', () => {
-    const resolved = resolvePath({ pathname: '/../etc/outside', cwd });
+    const resolved = resolvePath({
+      pathname: '/../etc/outside',
+      cwd,
+      spritePath: path.join(cwd, 'output', 'AvatarSprite.webp'),
+    });
     expect(resolved).toBeNull();
   });
 });

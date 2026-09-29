@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { isIP } from 'node:net';
 import { createReadStream, existsSync, statSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,11 +14,19 @@ const execAsync = promisify(exec);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '..', '..');
 const distDir = path.join(packageRoot, 'dist');
+const previewModules = new Set([
+  '/dist/browser.js',
+  '/dist/index.js',
+  '/dist/livepic/constants.js',
+  '/dist/livepic/attributes.js',
+  '/dist/livepic/image-load-task.js',
+]);
 
 type PreviewCliArgs = {
   port?: number | null;
   gridSize?: number | null;
   pictureSize?: number | null;
+  host?: string;
 };
 
 export default async function preview(args: string[] = []) {
@@ -25,12 +34,13 @@ export default async function preview(args: string[] = []) {
     port: rawPort,
     gridSize: rawGridSize,
     pictureSize: rawPictureSize,
+    host,
   } = parsePreviewArgs(args);
   const port = rawPort ?? DEFAULT_PORT;
   const gridSize = rawGridSize ?? undefined;
   const pictureSize = rawPictureSize ?? undefined;
   const cwd = process.cwd();
-  await startPreviewServer({ port, cwd, gridSize, pictureSize, open: true });
+  await startPreviewServer({ port, cwd, gridSize, pictureSize, open: true, host });
 }
 
 export async function startPreviewServer({
@@ -105,9 +115,7 @@ export async function startPreviewServer({
       return;
     }
 
-    const requestedSpritePath = safeJoin(cwd, pathname);
-    const filePath =
-      requestedSpritePath === spritePath ? spritePath : resolvePath({ pathname, cwd });
+    const filePath = resolvePath({ pathname, cwd, spritePath });
     if (!filePath) {
       res.statusCode = 404;
       res.end('Not found');
@@ -139,7 +147,9 @@ export async function startPreviewServer({
 
   const address = server.address();
   const realPort = typeof address === 'object' && address ? address.port : port;
-  const url = `http://${host}:${realPort}/`;
+  const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host === '::' ? '::1' : host;
+  const urlHost = isIP(displayHost) === 6 ? `[${displayHost}]` : displayHost;
+  const url = `http://${urlHost}:${realPort}/`;
   console.log(`Preview server running at ${url}`);
   if (open) {
     await openInBrowser(url);
@@ -185,8 +195,9 @@ export function parsePreviewArgs(args: string[]): PreviewCliArgs {
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     const hasEquals = arg.includes('=');
+    const isPositionalPort = !arg.startsWith('-') || /^-\d/.test(arg);
     const [key, value] = hasEquals ? arg.split('=').map((s) => s.trim()) : [arg, args[i + 1]];
-    if (!hasEquals) i++;
+    if (!hasEquals && !isPositionalPort) i++;
 
     switch (key) {
       case '--grid-size':
@@ -217,8 +228,17 @@ export function parsePreviewArgs(args: string[]): PreviewCliArgs {
         break;
       }
 
+      case '--host': {
+        if (!value || value.startsWith('-')) {
+          console.error(`Invalid host: ${value}. Expected a hostname or IP address.`);
+          process.exit(1);
+        }
+        result.host = value;
+        break;
+      }
+
       default:
-        if (args.length === 1) {
+        if (args.length === 1 || isPositionalPort) {
           const port = parsePort(arg);
           if (port === null) {
             console.error(`Invalid port: ${arg}`);
@@ -233,23 +253,20 @@ export function parsePreviewArgs(args: string[]): PreviewCliArgs {
   return result;
 }
 
-export function resolvePath({ pathname, cwd }: { pathname: string; cwd: string }) {
-  // Dist files served from package dist directory
-  if (pathname.startsWith('/dist/')) {
-    const candidate = safeJoin(distDir, pathname.replace('/dist/', ''));
-    return candidate && existsSync(candidate) && statSync(candidate).isFile() ? candidate : null;
-  }
+export function resolvePath({
+  pathname,
+  cwd,
+  spritePath,
+}: {
+  pathname: string;
+  cwd: string;
+  spritePath: string;
+}) {
+  if (safeJoin(cwd, pathname) === spritePath) return spritePath;
+  if (!previewModules.has(pathname)) return null;
 
-  const candidate = safeJoin(cwd, pathname);
-  if (candidate && existsSync(candidate)) {
-    if (statSync(candidate).isDirectory()) {
-      const indexInside = path.join(candidate, 'index.html');
-      return existsSync(indexInside) ? indexInside : null;
-    }
-    return candidate;
-  }
-
-  return null;
+  const candidate = safeJoin(distDir, pathname.slice('/dist/'.length));
+  return candidate && existsSync(candidate) && statSync(candidate).isFile() ? candidate : null;
 }
 
 async function openInBrowser(url: string) {

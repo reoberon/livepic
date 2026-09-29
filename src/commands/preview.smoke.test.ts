@@ -5,8 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { resolvePath, startPreviewServer } from './preview.js';
 
 describe('preview smoke', () => {
-  it('resolves dist files', () => {
-    const resolved = resolvePath({ pathname: '/dist/index.js', cwd: process.cwd() });
+  it('resolves browser modules', () => {
+    const resolved = resolvePath({
+      pathname: '/dist/index.js',
+      cwd: process.cwd(),
+      spritePath: path.join(process.cwd(), 'output', 'AvatarSprite.webp'),
+    });
     expect(resolved).toBeTruthy();
     expect(resolved && resolved.endsWith(path.join('dist', 'index.js'))).toBe(true);
   });
@@ -20,6 +24,7 @@ describe('preview smoke', () => {
       JSON.stringify({ gridSize: 3, pictureSize: 120 }),
     );
     fs.writeFileSync(path.join(outputDir, 'AvatarSprite.webp'), Buffer.from([0]));
+    fs.writeFileSync(path.join(tmpDir, '.env'), 'REPLICATE_API_TOKEN=test-token');
 
     let server: Awaited<ReturnType<typeof startPreviewServer>> | undefined;
 
@@ -30,6 +35,7 @@ describe('preview smoke', () => {
           cwd: tmpDir,
           open: false,
           exitOnError: false,
+          host: '0.0.0.0',
         });
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
@@ -40,6 +46,7 @@ describe('preview smoke', () => {
       }
 
       const address = server.address();
+      expect(typeof address === 'object' && address?.address).toBe('0.0.0.0');
       const port = typeof address === 'object' && address ? address.port : 0;
       const baseUrl = `http://127.0.0.1:${port}`;
 
@@ -56,9 +63,26 @@ describe('preview smoke', () => {
       expect(jsRes.status).toBe(200);
       await jsRes.arrayBuffer();
 
+      for (const modulePath of [
+        '/dist/index.js',
+        '/dist/livepic/constants.js',
+        '/dist/livepic/attributes.js',
+        '/dist/livepic/image-load-task.js',
+      ]) {
+        const moduleResponse = await fetch(`${baseUrl}${modulePath}`);
+        expect(moduleResponse.status).toBe(200);
+        await moduleResponse.arrayBuffer();
+      }
+
       const spriteRes = await fetch(`${baseUrl}/output/AvatarSprite.webp`);
       expect(spriteRes.status).toBe(200);
       await spriteRes.arrayBuffer();
+
+      for (const privatePath of ['/.env', '/output/sprite.json', '/dist/cli.js']) {
+        const privateResponse = await fetch(`${baseUrl}${privatePath}`);
+        expect(privateResponse.status).toBe(404);
+        expect(await privateResponse.text()).toBe('Not found');
+      }
     } finally {
       try {
         const runningServer = server;
