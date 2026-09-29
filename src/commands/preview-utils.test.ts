@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { contentType, renderHtml, safeJoin } from './preview-utils.js';
+import { contentType, isPathWithinRoot, renderHtml, safeJoin } from './preview-utils.js';
 
 describe('preview-utils', () => {
   it('returns expected content type', () => {
@@ -22,9 +22,19 @@ describe('preview-utils', () => {
     expect(safeJoin(root, '../etc/passwd')).toBeNull();
     expect(safeJoin(root, '../base-secret/file.txt')).toBeNull();
     expect(safeJoin(root, '/../outside')).toBeNull();
+    expect(safeJoin(root, '..sprites/avatar.webp')).toBe(path.join(root, '..sprites/avatar.webp'));
     expect(safeJoin(root, './inside')).toBe(path.join(root, 'inside'));
     expect(safeJoin(root, 'double/../inside')).toBe(path.join(root, 'inside'));
     expect(safeJoin(root, '/nested/../file.txt')).toBe(path.join(root, 'file.txt'));
+  });
+
+  it('identifies paths within a root', () => {
+    const root = '/root/base';
+    expect(isPathWithinRoot(root, root)).toBe(true);
+    expect(isPathWithinRoot(root, path.join(root, '..sprites/avatar.webp'))).toBe(true);
+    expect(isPathWithinRoot(root, path.join(root, 'nested/avatar.webp'))).toBe(true);
+    expect(isPathWithinRoot(root, path.join(root, '../outside.webp'))).toBe(false);
+    expect(isPathWithinRoot(root, path.join(root, '../base-secret/file.txt'))).toBe(false);
   });
 
   it('correctly renders HTML with provided attributes', () => {
