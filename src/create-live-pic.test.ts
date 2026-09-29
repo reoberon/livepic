@@ -16,6 +16,7 @@ describe('createLivePic', () => {
       size: 120,
       fps: 24,
       layoutTracking: 'frame',
+      offscreenBehavior: 'continue',
     });
 
     expect(element.getAttribute('sprite')).toBe('/sprite.webp');
@@ -24,6 +25,7 @@ describe('createLivePic', () => {
     expect(element.getAttribute('size')).toBe('120');
     expect(element.getAttribute('fps')).toBe('24');
     expect(element.getAttribute('layoutTracking')).toBe('frame');
+    expect(element.getAttribute('offscreenBehavior')).toBe('continue');
   });
 
   it('does not create attributes for omitted options', () => {
@@ -34,6 +36,7 @@ describe('createLivePic', () => {
     expect(element.hasAttribute('size')).toBe(false);
     expect(element.hasAttribute('fps')).toBe(false);
     expect(element.hasAttribute('layoutTracking')).toBe(false);
+    expect(element.hasAttribute('offscreenBehavior')).toBe(false);
   });
 
   it('does not create attributes for undefined options', () => {

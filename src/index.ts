@@ -16,6 +16,7 @@ export class LivePic extends HTMLElement {
   lastPointerVersion = -1;
   trackingActive = false;
   visibilityObserver: IntersectionObserver | null = null;
+  private observerVisible: boolean | null = null;
   options: LivePicOptions | null = null;
   errors: string[] = [];
   private connectionVersion = 0;
@@ -39,6 +40,15 @@ export class LivePic extends HTMLElement {
     LivePic.pointerX = point.clientX;
     LivePic.pointerY = point.clientY;
     LivePic.pointerVersion += 1;
+    LivePic.activeInstances.forEach((instance) => {
+      if (
+        instance.shouldTrackLayoutEveryFrame() &&
+        !instance.isVisible &&
+        !instance.visibilityObserver
+      ) {
+        instance.scheduleRectUpdate();
+      }
+    });
     LivePic.startLoop();
   };
 
@@ -339,6 +349,7 @@ export class LivePic extends HTMLElement {
       this.visibilityObserver.disconnect();
       this.visibilityObserver = null;
     }
+    this.observerVisible = null;
   }
 
   updateRect = () => {
@@ -362,11 +373,23 @@ export class LivePic extends HTMLElement {
     this.rectUpdateQueued = true;
   };
 
+  refreshGeometry() {
+    if (!this.trackingActive && !this.visibilityObserver) return;
+
+    this.updateRect();
+    if (!this.canUpdateFrame()) return;
+
+    this.applyFrame(performance.now());
+  }
+
   updateFrame = (now = performance.now()): boolean => {
     if (!this.trackingActive) return false;
 
     const tracksLayoutEveryFrame = this.shouldTrackLayoutEveryFrame();
-    if (tracksLayoutEveryFrame || this.rectUpdateQueued) {
+    if (
+      this.rectUpdateQueued ||
+      (tracksLayoutEveryFrame && (this.isVisible || this.options!.offscreenBehavior === 'continue'))
+    ) {
       this.updateRect();
     }
 
@@ -383,7 +406,12 @@ export class LivePic extends HTMLElement {
   }
 
   canUpdateFrame(): boolean {
-    if (!this.isVisible) return false;
+    if (
+      this.options!.offscreenBehavior === 'pause' &&
+      (!this.isVisible || this.observerVisible === false)
+    ) {
+      return false;
+    }
     if (document.visibilityState === 'hidden') return false;
     return LivePic.pointerX !== null && LivePic.pointerY !== null;
   }
@@ -476,11 +504,12 @@ export class LivePic extends HTMLElement {
       (entries) => {
         const entry = entries[0];
         const currentlyVisible = entry?.isIntersecting ?? false;
+        this.observerVisible = currentlyVisible;
         this.isVisible = currentlyVisible;
         if (currentlyVisible) {
           this.scheduleRectUpdate();
           this.startTracking();
-        } else {
+        } else if (this.options!.offscreenBehavior === 'pause') {
           this.stopTracking();
         }
       },

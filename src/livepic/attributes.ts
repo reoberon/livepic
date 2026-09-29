@@ -1,7 +1,8 @@
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './constants.js';
-import { Attribute, LivePicLayoutTracking } from './types.js';
+import { Attribute, LivePicLayoutTracking, LivePicOffscreenBehavior } from './types.js';
 
 const LAYOUT_TRACKING_VALUES: readonly LivePicLayoutTracking[] = ['static', 'frame'];
+const OFFSCREEN_BEHAVIOR_VALUES: readonly LivePicOffscreenBehavior[] = ['pause', 'continue'];
 
 export const ATTRIBUTES: Attribute[] = [
   { name: 'size', type: 'number', defaultValue: DEFAULT_SIZE, positive: true },
@@ -21,5 +22,11 @@ export const ATTRIBUTES: Attribute[] = [
     type: 'string',
     defaultValue: 'static',
     values: LAYOUT_TRACKING_VALUES,
+  },
+  {
+    name: 'offscreenBehavior',
+    type: 'string',
+    defaultValue: 'pause',
+    values: OFFSCREEN_BEHAVIOR_VALUES,
   },
 ];

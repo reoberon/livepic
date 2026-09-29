@@ -1,4 +1,5 @@
 export type LivePicLayoutTracking = 'static' | 'frame';
+export type LivePicOffscreenBehavior = 'pause' | 'continue';
 
 export type LivePicOptions = {
   size: number;
@@ -6,6 +7,7 @@ export type LivePicOptions = {
   sprite: string;
   fps: number;
   layoutTracking: LivePicLayoutTracking;
+  offscreenBehavior: LivePicOffscreenBehavior;
   placeholder?: string;
 };
 

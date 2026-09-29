@@ -86,7 +86,9 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
   - `size` (finite positive number, default `160`): Component width/height in px. Fractional values such as `120.5` and `0.5` are supported.
   - `fps` (positive number, default `30`): Max frame updates per second.
   - `layoutTracking` (`static` or `frame`, default `static`): Set to `frame` when the element moves independently of scroll/resize, such as during CSS transforms or drag animations. This refreshes geometry every active frame.
-- Behavior: tracks mouse/touch, picks the right frame from the sprite, pauses when offscreen or when the document is hidden, assumes a square aspect ratio (wrap it with your own styles as needed).
+  - `offscreenBehavior` (`pause` or `continue`, default `pause`): Set to `continue` to keep tracking pointer movement while the element is offscreen or clipped. With `layoutTracking="frame"`, geometry also keeps updating every frame. Updates still pause while the document is hidden.
+- Behavior: tracks mouse/touch, picks the right frame from the sprite, pauses when offscreen by default or when the document is hidden, assumes a square aspect ratio (wrap it with your own styles as needed).
+- After moving a portrait without pointer or viewport activity, call `livePic.refreshGeometry()` to recalculate its position and draw once. This does not start tracking; a paused portrait resumes tracking when it becomes visible to IntersectionObserver.
 
 ### Migration from v1.3.0
 

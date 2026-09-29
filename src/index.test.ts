@@ -717,6 +717,45 @@ describe('LivePic web component', () => {
       }
     });
 
+    it('draws an offscreen frame-tracked element once after refreshGeometry is called', async () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+      const observerDescriptor = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+      Reflect.deleteProperty(window, 'IntersectionObserver');
+
+      const imageLoading = mockControlledImageLoading();
+      const el = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'frame' });
+      let left = 0;
+      el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+      try {
+        document.body.appendChild(el);
+        await imageLoading.load('/sprite.webp');
+        await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+        document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+
+        frames.shift()!(0);
+        expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+        left = 900;
+        frames.shift()!(0);
+        expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+        left = 700;
+        el.refreshGeometry();
+        expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+        expect(frames).toHaveLength(0);
+      } finally {
+        el.remove();
+        if (observerDescriptor) {
+          Object.defineProperty(window, 'IntersectionObserver', observerDescriptor);
+        }
+      }
+    });
+
     it('handles stopLoop when not running', () => {
       LivePic.rafId = null;
 
@@ -746,6 +785,35 @@ describe('LivePic web component', () => {
     el.updateFrame();
 
     expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+  });
+
+  it('refreshGeometry updates a static portrait after it moves without a viewport event', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'static' });
+    let left = 0;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+      left = 700;
+      el.refreshGeometry();
+      expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+      expect(frames).toHaveLength(0);
+    } finally {
+      el.remove();
+    }
   });
 
   describe('calculatePosition', () => {
@@ -817,6 +885,17 @@ describe('LivePic web component', () => {
       expect(opts.layoutTracking).toBe('static');
     });
 
+    it('rejects an invalid offscreen behavior', () => {
+      const el = createLivePic({ sprite: '/img.png' });
+      el.setAttribute('offscreenBehavior', 'sometimes');
+
+      document.body.appendChild(el);
+
+      expect(el.shadowRoot?.querySelector('.error')?.textContent).toContain(
+        'Value of offscreenBehavior attribute must be one of: pause, continue',
+      );
+    });
+
     it('get an error message when required sprite attribute is missing', () => {
       const el = new LivePic();
       expect(el.collectOptions()[1].length).toBeGreaterThan(0);
@@ -871,6 +950,89 @@ describe('LivePic web component', () => {
     expect(shouldContinue).toBe(true);
   });
 
+  it('continues drawing while an offscreen portrait moves without another pointer event', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const observerDescriptor = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      layoutTracking: 'frame',
+      offscreenBehavior: 'continue',
+    });
+    let left = 900;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('25% 50%');
+
+      left = 100;
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+    } finally {
+      el.remove();
+      if (observerDescriptor) {
+        Object.defineProperty(window, 'IntersectionObserver', observerDescriptor);
+      }
+    }
+  });
+
+  it('does not poll an offscreen portrait before input or on frames used by another portrait', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const observerDescriptor = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+
+    const imageLoading = mockControlledImageLoading();
+    const offscreen = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'frame' });
+    const visible = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'frame' });
+    let left = 900;
+    offscreen.$el.getBoundingClientRect = vi.fn(() => new DOMRect(left, 500, 100, 100));
+    visible.$el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+    try {
+      document.body.append(offscreen, visible);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+      frames.shift()!(0);
+      expect(frames).toHaveLength(0);
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      const rectReads = vi.mocked(offscreen.$el.getBoundingClientRect).mock.calls.length;
+
+      frames.shift()!(0);
+      frames.shift()!(0);
+      expect(offscreen.$el.getBoundingClientRect).toHaveBeenCalledTimes(rectReads);
+
+      left = 700;
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(offscreen.$el.getBoundingClientRect).toHaveBeenCalledTimes(rectReads + 1);
+      expect(offscreen.$el.style.backgroundPosition).toBe('50% 50%');
+    } finally {
+      offscreen.remove();
+      visible.remove();
+      if (observerDescriptor) {
+        Object.defineProperty(window, 'IntersectionObserver', observerDescriptor);
+      }
+    }
+  });
+
   it('reacts to IntersectionObserver visibility changes', () => {
     const observe = vi.fn();
     const disconnect = vi.fn();
@@ -891,6 +1053,7 @@ describe('LivePic web component', () => {
     );
 
     const el = new LivePic();
+    el.options = livePicOptions();
     const startSpy = vi.spyOn(el, 'startTracking');
     const stopSpy = vi.spyOn(el, 'stopTracking');
     const scheduleRectUpdateSpy = vi.spyOn(el, 'scheduleRectUpdate');
@@ -913,7 +1076,172 @@ describe('LivePic web component', () => {
       el.visibilityObserver?.disconnect();
     }
   });
+
+  it('does not draw or restart tracking when the observer has paused a clipped element', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({ sprite: '/sprite.webp' });
+    let left = 0;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+      left = 700;
+      el.refreshGeometry();
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700, clientY: 600 }));
+
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+      expect(frames).toHaveLength(0);
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('continues reacting to the pointer when the observer reports a clipped element', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      offscreenBehavior: 'continue',
+    });
+    el.$el.getBoundingClientRect = () => new DOMRect(100, 100, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, clientY: 150 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('updates a clipped frame-tracked portrait after it moves without another pointer event', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      layoutTracking: 'frame',
+      offscreenBehavior: 'continue',
+    });
+    let left = 900;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('25% 50%');
+
+      left = 100;
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('pauses a continuing portrait while the document is hidden and resumes it when visible', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const visibilityState = vi.spyOn(document, 'visibilityState', 'get');
+    visibilityState.mockReturnValue('visible');
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({ sprite: '/sprite.webp', offscreenBehavior: 'continue' });
+    el.$el.getBoundingClientRect = () => new DOMRect(100, 100, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+
+      visibilityState.mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, clientY: 150 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+
+      visibilityState.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+    } finally {
+      el.remove();
+    }
+  });
 });
+
+class FakeIntersectionObserver {
+  static observers = new WeakMap<Element, FakeIntersectionObserver>();
+
+  constructor(private callback: IntersectionObserverCallback) {}
+
+  observe(element: Element) {
+    FakeIntersectionObserver.observers.set(element, this);
+  }
+
+  disconnect() {}
+
+  emit(isIntersecting: boolean) {
+    this.callback(
+      [{ isIntersecting } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
 
 function livePicOptions(overrides: Partial<LivePicOptions> = {}): LivePicOptions {
   return {
@@ -922,6 +1250,7 @@ function livePicOptions(overrides: Partial<LivePicOptions> = {}): LivePicOptions
     sprite: '/img.png',
     fps: 60,
     layoutTracking: 'static',
+    offscreenBehavior: 'pause',
     ...overrides,
   };
 }
