@@ -97,6 +97,8 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 `livepic/dist/index.js` and `livepic/dist/browser.js` no longer resolve. Import from
 `livepic` for the component API or `livepic/browser` to register `<live-pic>` automatically.
 The two legacy `dist` entry points remain available.
+The package supports ESM imports only. The root entry no longer resolves through
+`require('livepic')` or `require.resolve('livepic')`; use `import` instead.
 
 **Breaking change:** `LivePic.sprite` is now `ImageLoader | null`. It is `null` on a
 newly created element and is assigned when sprite loading starts after a valid
