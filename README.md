@@ -92,6 +92,12 @@ LivePic turns a single portrait into an interactive, gaze‑tracking sprite and 
 
 ### Migration from v1.3.0
 
+**Breaking change:** Package subpaths are now restricted by `exports`. Imports such as
+`livepic/package.json` and internal `livepic/dist/...` modules other than
+`livepic/dist/index.js` and `livepic/dist/browser.js` no longer resolve. Import from
+`livepic` for the component API or `livepic/browser` to register `<live-pic>` automatically.
+The two legacy `dist` entry points remain available.
+
 **Breaking change:** `LivePic.sprite` is now `ImageLoader | null`. It is `null` on a
 newly created element and is assigned when sprite loading starts after a valid
 connection. Code that reads `livePic.sprite.image` before connecting the element
