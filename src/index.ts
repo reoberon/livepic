@@ -572,7 +572,9 @@ export function defineLivePic(tag = LIVE_PIC_TAG) {
 
 export function createLivePic(options: LivePicInit): LivePic {
   const tag = registeredTag ?? LIVE_PIC_TAG;
-  defineLivePic(tag);
+  if (!defineLivePic(tag)) {
+    throw new Error(`Cannot create LivePic with tag "${tag}": customElements is unavailable.`);
+  }
 
   const element = document.createElement(tag) as LivePic;
 
