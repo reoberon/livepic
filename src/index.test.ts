@@ -787,6 +787,17 @@ describe('LivePic web component', () => {
     expect(el.$el.style.backgroundPosition).toBe('100% 100%');
   });
 
+  it('ignores touch movement without an active touch', () => {
+    LivePic.pointerX = 25;
+    LivePic.pointerY = 50;
+    LivePic.pointerVersion = 1;
+
+    expect(() => LivePic.handlePointerMove(new TouchEvent('touchmove'))).not.toThrow();
+    expect(LivePic.pointerX).toBe(25);
+    expect(LivePic.pointerY).toBe(50);
+    expect(LivePic.pointerVersion).toBe(1);
+  });
+
   it('refreshGeometry updates a static portrait after it moves without a viewport event', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.mocked(requestAnimationFrame).mockImplementation((callback) => {

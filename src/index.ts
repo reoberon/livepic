@@ -37,6 +37,7 @@ export class LivePic extends HTMLElement {
   };
   static handlePointerMove = (e: MouseEvent | TouchEvent) => {
     const point = 'touches' in e ? e.touches[0] : e;
+    if (!point) return;
     LivePic.pointerX = point.clientX;
     LivePic.pointerY = point.clientY;
     LivePic.pointerVersion += 1;
