@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { SPRITE_FILE, SPRITE_META } from './constants.js';
+import { SPRITE_META } from './constants.js';
 
 export function contentType(filePath: string) {
   const ext = path.extname(filePath).toLowerCase();
@@ -27,9 +27,17 @@ export function contentType(filePath: string) {
 }
 
 export function safeJoin(root: string, requestPath: string) {
+  const rootPath = path.resolve(root);
   const cleaned = requestPath.startsWith('/') ? requestPath.slice(1) : requestPath;
-  const joined = path.normalize(path.join(root, cleaned));
-  return joined.startsWith(root) ? joined : null;
+  const joined = path.resolve(rootPath, cleaned);
+
+  return isPathWithinRoot(rootPath, joined) ? joined : null;
+}
+
+export function isPathWithinRoot(root: string, candidate: string) {
+  const relative = path.relative(root, candidate);
+  const firstSegment = relative.split(path.sep)[0];
+  return firstSegment !== '..' && !path.isAbsolute(relative);
 }
 
 export function renderHtml(params: { gridSize: number; pictureSize: number; sprite: string }) {
@@ -52,10 +60,6 @@ export function renderHtml(params: { gridSize: number; pictureSize: number; spri
     <live-pic gridSize="${gridSize}" size="${pictureSize}" sprite="${sprite}"></live-pic>
   </body>
 </html>`;
-}
-
-export function spriteFilePath(cwd: string) {
-  return path.join(cwd, SPRITE_FILE);
 }
 
 export function spriteMetaPath(cwd: string) {

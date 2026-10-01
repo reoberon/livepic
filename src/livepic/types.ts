@@ -1,10 +1,17 @@
+export type LivePicLayoutTracking = 'static' | 'frame';
+export type LivePicOffscreenBehavior = 'pause' | 'continue';
+
 export type LivePicOptions = {
   size: number;
   gridSize: number;
   sprite: string;
   fps: number;
+  layoutTracking: LivePicLayoutTracking;
+  offscreenBehavior: LivePicOffscreenBehavior;
   placeholder?: string;
 };
+
+export type LivePicInit = Pick<LivePicOptions, 'sprite'> & Partial<Omit<LivePicOptions, 'sprite'>>;
 
 type BaseAttribute = {
   name: string;
@@ -17,11 +24,16 @@ type BaseAttribute = {
 export type NumberAttribute = BaseAttribute & {
   type: 'number';
   defaultValue?: number;
+  integer?: boolean;
+  min?: number;
+  positive?: boolean;
+  odd?: boolean;
 };
 
 export type StringAttribute = BaseAttribute & {
   type: 'string';
   defaultValue?: string;
+  values?: readonly string[];
 };
 
 export type Attribute = StringAttribute | NumberAttribute;

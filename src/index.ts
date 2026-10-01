@@ -1,78 +1,27 @@
-import { Attribute, LivePicOptions, ImageLoadStatus } from './livepic/types.js';
+import { Attribute, LivePicInit, LivePicOptions } from './livepic/types.js';
 import { DEFAULT_TAG, DEFAULT_SIZE } from './livepic/constants.js';
 import { ATTRIBUTES } from './livepic/attributes.js';
-
-export class ImageLoader {
-  image: HTMLImageElement;
-  status: ImageLoadStatus;
-
-  constructor() {
-    this.image = new Image();
-    this.status = 'not_started';
-  }
-
-  inProgress() {
-    return this.status === 'loading' || this.status === 'not_started';
-  }
-
-  async load(src: string) {
-    this.status = 'loading';
-    return new Promise<ImageLoadStatus>((resolve, reject) => {
-      if (!src) {
-        this.status = 'failed';
-        return reject(this.status);
-      }
-
-      const onLoad = () => {
-        this.image.removeEventListener('error', onError);
-
-        if (this.status === 'aborted') {
-          return reject(this.status);
-        }
-
-        this.status = 'loaded';
-        resolve(this.status);
-      };
-
-      const onError = () => {
-        this.image.removeEventListener('load', onLoad);
-        this.image.src = '';
-        this.status = 'failed';
-        reject(this.status);
-      };
-
-      this.image.addEventListener('load', onLoad, { once: true });
-      this.image.addEventListener('error', onError, { once: true });
-
-      this.image.src = src;
-    });
-  }
-
-  abort() {
-    if (this.inProgress()) {
-      this.status = 'aborted';
-      this.image.src = '';
-    }
-  }
-}
+import { ImageLoadTask } from './livepic/image-load-task.js';
 
 export class LivePic extends HTMLElement {
   $el: HTMLElement;
-  lastFrameTime: number;
-  maxDistanceX: number | null;
-  maxDistanceY: number | null;
-  rect: DOMRect | null;
-  isVisible: boolean;
-  rectUpdateQueued: boolean;
-  rectVersion: number;
-  lastRectVersion: number;
-  lastPointerVersion: number;
-  trackingActive: boolean;
-  visibilityObserver: IntersectionObserver | null;
-  options: LivePicOptions | null;
-  errors: string[];
-  sprite: ImageLoader;
-  placeholder: ImageLoader | null;
+  lastFrameTime = 0;
+  maxDistanceX: number | null = null;
+  maxDistanceY: number | null = null;
+  rect: DOMRect | null = null;
+  isVisible = false;
+  rectUpdateQueued = false;
+  rectVersion = 0;
+  lastRectVersion = -1;
+  lastPointerVersion = -1;
+  trackingActive = false;
+  visibilityObserver: IntersectionObserver | null = null;
+  private observerVisible: boolean | null = null;
+  options: LivePicOptions | null = null;
+  errors: string[] = [];
+  private connectionVersion = 0;
+  sprite: ImageLoadTask | null = null;
+  placeholder: ImageLoadTask | null = null;
 
   static activeInstances = new Set<LivePic>();
   static rafId: number | null = null;
@@ -81,33 +30,48 @@ export class LivePic extends HTMLElement {
   static pointerVersion = 0;
   static handleViewportChange = () => {
     LivePic.activeInstances.forEach((instance) => instance.scheduleRectUpdate());
+    LivePic.startLoop();
+  };
+  static handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') LivePic.handleViewportChange();
   };
   static handlePointerMove = (e: MouseEvent | TouchEvent) => {
     const point = 'touches' in e ? e.touches[0] : e;
+    if (!point) return;
     LivePic.pointerX = point.clientX;
     LivePic.pointerY = point.clientY;
     LivePic.pointerVersion += 1;
+    LivePic.activeInstances.forEach((instance) => {
+      if (
+        instance.shouldTrackLayoutEveryFrame() &&
+        !instance.isVisible &&
+        !instance.visibilityObserver
+      ) {
+        instance.scheduleRectUpdate();
+      }
+    });
+    LivePic.startLoop();
   };
+
+  static addSharedListeners() {
+    document.addEventListener('mousemove', LivePic.handlePointerMove);
+    document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
+    document.addEventListener('visibilitychange', LivePic.handleVisibilityChange);
+    window.addEventListener('resize', LivePic.handleViewportChange);
+    window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+  }
+
+  static removeSharedListeners() {
+    document.removeEventListener('mousemove', LivePic.handlePointerMove);
+    document.removeEventListener('touchmove', LivePic.handlePointerMove);
+    document.removeEventListener('visibilitychange', LivePic.handleVisibilityChange);
+    window.removeEventListener('resize', LivePic.handleViewportChange);
+    window.removeEventListener('scroll', LivePic.handleViewportChange);
+  }
 
   constructor() {
     super();
     const shadow = this.attachShadow({ mode: 'open' });
-
-    this.lastFrameTime = 0;
-    this.maxDistanceX = null;
-    this.maxDistanceY = null;
-    this.rect = null;
-    this.isVisible = false;
-    this.rectUpdateQueued = false;
-    this.rectVersion = 0;
-    this.lastRectVersion = -1;
-    this.lastPointerVersion = -1;
-    this.trackingActive = false;
-    this.visibilityObserver = null;
-    this.options = null;
-    this.errors = [];
-    this.sprite = new ImageLoader();
-    this.placeholder = null;
 
     this.$el = document.createElement('div');
     this.$el.classList.add('livepic');
@@ -140,6 +104,7 @@ export class LivePic extends HTMLElement {
   }
 
   connectedCallback() {
+    const connectionVersion = ++this.connectionVersion;
     [this.options, this.errors] = this.collectOptions();
 
     if (this.errors.length > 0) {
@@ -149,15 +114,27 @@ export class LivePic extends HTMLElement {
 
     this.initStyles();
     this.loadPlaceholder();
-    this.loadSprite()
-      .then(() => {
-        this.observeVisibility();
-        this.updateRect();
-        this.startTracking();
-      })
-      .catch(() => {
-        // Sprite loading failed, fallback already called in loadSprite()
-      });
+    void this.initialize(connectionVersion);
+  }
+
+  private async initialize(connectionVersion: number) {
+    try {
+      await this.loadSprite();
+    } catch {
+      return;
+    }
+
+    if (!this.isConnected || this.connectionVersion !== connectionVersion) {
+      return;
+    }
+
+    if (this.sprite?.status !== 'loaded') {
+      return;
+    }
+
+    this.observeVisibility();
+    this.updateRect();
+    this.startTracking();
   }
 
   collectOptions() {
@@ -222,7 +199,14 @@ export class LivePic extends HTMLElement {
 
     switch (type) {
       case 'string': {
-        const value = rawValue !== null ? rawValue : fallbackValue;
+        const value = rawValue !== null ? rawValue : String(fallbackValue);
+        if (attribute.values && !attribute.values.includes(value)) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be one of: ${attribute.values.join(', ')}`,
+          };
+        }
+
         return { value };
       }
 
@@ -232,10 +216,38 @@ export class LivePic extends HTMLElement {
         }
 
         const value = Number(rawValue);
-        if (Number.isNaN(value)) {
+        if (!Number.isFinite(value)) {
           return {
             value: fallbackValue,
             error: `Value of ${name} attribute is not a valid number`,
+          };
+        }
+
+        if (attribute.integer && !Number.isInteger(value)) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be an integer`,
+          };
+        }
+
+        if (attribute.min !== undefined && value < attribute.min) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be at least ${attribute.min}`,
+          };
+        }
+
+        if (attribute.positive && value <= 0) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be greater than 0`,
+          };
+        }
+
+        if (attribute.odd && value % 2 !== 1) {
+          return {
+            value: fallbackValue,
+            error: `Value of ${name} attribute must be an odd integer`,
           };
         }
 
@@ -256,40 +268,58 @@ export class LivePic extends HTMLElement {
     const { placeholder: src, size } = this.options!;
     if (!src) return;
 
-    this.placeholder = new ImageLoader();
+    const placeholder = new ImageLoadTask();
+    this.placeholder = placeholder;
 
-    this.placeholder
+    placeholder
       .load(src)
       .then(() => {
+        if (this.placeholder !== placeholder) return;
+
         this.$el.style.backgroundSize = `${size}px ${size}px`;
         this.$el.style.backgroundImage = `url(${src})`;
       })
       .catch(() => {
+        if (placeholder.status === 'aborted') return;
+
         console.warn(`Placeholder loading failed for src: ${src}`);
       });
   }
 
   async loadSprite() {
     const { sprite: src, size, gridSize } = this.options!;
-    return new Promise<void>((resolve, reject) => {
-      this.sprite
-        .load(src)
-        .then(() => {
-          const placeholder = this.placeholder;
-          if (placeholder && placeholder.inProgress()) {
-            placeholder.abort();
-          }
+    const sprite = new ImageLoadTask();
+    this.sprite = sprite;
 
-          const spriteWidth = gridSize * size;
-          this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
-          this.$el.style.backgroundImage = `url(${src})`;
-          resolve();
-        })
-        .catch(() => {
-          this.fallback('Sprite loading failed');
-          reject();
-        });
-    });
+    try {
+      await sprite.load(src);
+    } catch (error) {
+      if (sprite.status === 'aborted' || this.sprite !== sprite) {
+        return;
+      }
+
+      this.fallback('Sprite loading failed');
+      throw new Error(`Sprite loading failed for src: ${src}; expected a loadable image URL`, {
+        cause: error,
+      });
+    }
+
+    if (this.sprite !== sprite) {
+      return;
+    }
+
+    this.applySprite(src, size, gridSize);
+  }
+
+  private applySprite(src: string, size: number, gridSize: number) {
+    const placeholder = this.placeholder;
+    if (placeholder && placeholder.inProgress()) {
+      placeholder.abort();
+    }
+
+    const spriteWidth = gridSize * size;
+    this.$el.style.backgroundSize = `${spriteWidth}px ${spriteWidth}px`;
+    this.$el.style.backgroundImage = `url(${src})`;
   }
 
   fallback(message: string) {
@@ -313,11 +343,14 @@ export class LivePic extends HTMLElement {
 
   disconnectedCallback() {
     this.stopTracking();
+    this.placeholder?.abort();
+    this.sprite?.abort();
 
     if (this.visibilityObserver) {
       this.visibilityObserver.disconnect();
       this.visibilityObserver = null;
     }
+    this.observerVisible = null;
   }
 
   updateRect = () => {
@@ -341,33 +374,68 @@ export class LivePic extends HTMLElement {
     this.rectUpdateQueued = true;
   };
 
-  updateFrame = (now = performance.now()) => {
-    if (!this.trackingActive) return;
+  refreshGeometry() {
+    if (!this.trackingActive && !this.visibilityObserver) return;
 
-    if (this.rectUpdateQueued) {
+    this.updateRect();
+    if (!this.canUpdateFrame()) return;
+
+    this.applyFrame(performance.now());
+  }
+
+  updateFrame = (now = performance.now()): boolean => {
+    if (!this.trackingActive) return false;
+
+    const tracksLayoutEveryFrame = this.shouldTrackLayoutEveryFrame();
+    if (
+      this.rectUpdateQueued ||
+      (tracksLayoutEveryFrame && (this.isVisible || this.options!.offscreenBehavior === 'continue'))
+    ) {
       this.updateRect();
     }
 
-    if (!this.isVisible) return;
-    const pointerX = LivePic.pointerX;
-    const pointerY = LivePic.pointerY;
-    if (pointerX === null || pointerY === null) return;
-    if (document.visibilityState === 'hidden') return;
+    if (!this.canUpdateFrame()) return false;
+    if (!this.frameStateChanged()) return tracksLayoutEveryFrame;
+    if (this.isThrottled(now)) return true;
 
-    // Check if position has changed before FPS throttling to avoid unnecessary lastFrameTime updates
-    const pointerVersion = LivePic.pointerVersion;
-    if (pointerVersion === this.lastPointerVersion && this.rectVersion === this.lastRectVersion)
-      return;
-
-    if (now - this.lastFrameTime < 1000 / this.options!.fps) return;
-    this.lastFrameTime = now;
-
-    this.$el.style.backgroundPosition = this.calculatePosition(pointerX, pointerY);
-    this.lastPointerVersion = pointerVersion;
-    this.lastRectVersion = this.rectVersion;
+    this.applyFrame(now);
+    return tracksLayoutEveryFrame;
   };
 
-  calculatePosition(pointerX = LivePic.pointerX, pointerY = LivePic.pointerY) {
+  shouldTrackLayoutEveryFrame(): boolean {
+    return this.options!.layoutTracking === 'frame';
+  }
+
+  canUpdateFrame(): boolean {
+    if (
+      this.options!.offscreenBehavior === 'pause' &&
+      (!this.isVisible || this.observerVisible === false)
+    ) {
+      return false;
+    }
+    if (document.visibilityState === 'hidden') return false;
+    return LivePic.pointerX !== null && LivePic.pointerY !== null;
+  }
+
+  frameStateChanged(): boolean {
+    return (
+      LivePic.pointerVersion !== this.lastPointerVersion ||
+      this.rectVersion !== this.lastRectVersion
+    );
+  }
+
+  isThrottled(now: number): boolean {
+    return now - this.lastFrameTime < 1000 / this.options!.fps;
+  }
+
+  applyFrame(now: number) {
+    this.lastFrameTime = now;
+    this.$el.style.backgroundPosition = this.calculatePosition(LivePic.pointerX, LivePic.pointerY);
+    this.lastPointerVersion = LivePic.pointerVersion;
+    this.lastRectVersion = this.rectVersion;
+  }
+
+  calculatePosition(pointerX = LivePic.pointerX, pointerY = LivePic.pointerY): string {
     if (pointerX === null || pointerY === null) {
       return this.$el.style.backgroundPosition;
     }
@@ -393,19 +461,17 @@ export class LivePic extends HTMLElement {
   }
 
   startTracking() {
-    if (this.trackingActive) return;
-    this.trackingActive = true;
-    LivePic.activeInstances.add(this);
-
-    // not the first instance, skip setting up shared listeners
-    if (LivePic.activeInstances.size > 1) {
+    if (this.trackingActive) {
+      LivePic.startLoop();
       return;
     }
 
-    document.addEventListener('mousemove', LivePic.handlePointerMove);
-    document.addEventListener('touchmove', LivePic.handlePointerMove, { passive: true });
-    window.addEventListener('resize', LivePic.handleViewportChange);
-    window.addEventListener('scroll', LivePic.handleViewportChange, { passive: true });
+    this.trackingActive = true;
+    LivePic.activeInstances.add(this);
+
+    if (LivePic.activeInstances.size === 1) {
+      LivePic.addSharedListeners();
+    }
 
     LivePic.startLoop();
   }
@@ -420,10 +486,7 @@ export class LivePic extends HTMLElement {
       return;
     }
 
-    document.removeEventListener('mousemove', LivePic.handlePointerMove);
-    document.removeEventListener('touchmove', LivePic.handlePointerMove);
-    window.removeEventListener('resize', LivePic.handleViewportChange);
-    window.removeEventListener('scroll', LivePic.handleViewportChange);
+    LivePic.removeSharedListeners();
 
     LivePic.pointerX = null;
     LivePic.pointerY = null;
@@ -442,11 +505,12 @@ export class LivePic extends HTMLElement {
       (entries) => {
         const entry = entries[0];
         const currentlyVisible = entry?.isIntersecting ?? false;
+        this.observerVisible = currentlyVisible;
         this.isVisible = currentlyVisible;
         if (currentlyVisible) {
           this.scheduleRectUpdate();
           this.startTracking();
-        } else {
+        } else if (this.options!.offscreenBehavior === 'pause') {
           this.stopTracking();
         }
       },
@@ -458,13 +522,22 @@ export class LivePic extends HTMLElement {
 
   static startLoop() {
     if (LivePic.rafId !== null) return;
-    const step = () => {
-      LivePic.rafId = requestAnimationFrame(step);
-      const now = performance.now();
-      LivePic.activeInstances.forEach((instance) => instance.updateFrame(now));
-    };
-    step();
+    LivePic.rafId = requestAnimationFrame(LivePic.runFrame);
   }
+
+  static runFrame = () => {
+    LivePic.rafId = null;
+
+    const now = performance.now();
+    let hasPendingFrame = false;
+    LivePic.activeInstances.forEach((instance) => {
+      hasPendingFrame = instance.updateFrame(now) || hasPendingFrame;
+    });
+
+    if (hasPendingFrame) {
+      LivePic.startLoop();
+    }
+  };
 
   static stopLoop() {
     if (LivePic.rafId !== null) {
@@ -476,13 +549,47 @@ export class LivePic extends HTMLElement {
 
 export const LIVE_PIC_TAG = DEFAULT_TAG;
 
+let registeredTag: string | undefined;
+
 export function defineLivePic(tag = LIVE_PIC_TAG) {
   if (!isCustomElementsAvailable()) return false;
-  if (!customElements.get(tag)) {
+  if (registeredTag !== undefined && registeredTag !== tag) {
+    throw new Error(
+      `Cannot register LivePic with tag "${tag}"; expected the already registered tag "${registeredTag}".`,
+    );
+  }
+  const existing = customElements.get(tag);
+  if (existing && existing !== LivePic) {
+    throw new Error(
+      `Cannot register LivePic with tag "${tag}": it is already registered to ${existing.name || 'an anonymous constructor'}, expected LivePic.`,
+    );
+  }
+  if (!existing) {
     customElements.define(tag, LivePic);
   }
+  registeredTag = tag;
   return true;
 }
+
+export function createLivePic(options: LivePicInit): LivePic {
+  const tag = registeredTag ?? LIVE_PIC_TAG;
+  if (!defineLivePic(tag)) {
+    throw new Error(`Cannot create LivePic with tag "${tag}": customElements is unavailable.`);
+  }
+
+  const element = document.createElement(tag) as LivePic;
+
+  for (const [name, value] of Object.entries(options)) {
+    if (value !== undefined) {
+      element.setAttribute(name, String(value));
+    }
+  }
+
+  return element;
+}
+
+export type { LivePicInit } from './livepic/types.js';
+export { ImageLoadTask as ImageLoader } from './livepic/image-load-task.js';
 
 function isCustomElementsAvailable() {
   return typeof window !== 'undefined' && window.customElements;

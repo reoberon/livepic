@@ -1,7 +1,7 @@
 node_modules/
-.npm-cache/
 dist/
 coverage/
+output/
 .vscode/
 *.log
 .DS_Store

@@ -1,47 +1,86 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import readline from 'node:readline';
 import {
   ensureApiToken,
   ensureInputFileExists,
   getGridSizeFromArgs,
+  handleOptionInput,
   parseArgs,
   promptForConfirmation,
   promptForNumber,
+  renderOptions,
   round,
   writeSpriteMetadata,
 } from './generate-utils.js';
 import { GenerateContext } from './types.js';
 
+const stdinIsTTYDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 let stdoutSpy: ReturnType<typeof vi.spyOn>;
+
+class FakeConfirmationInput extends EventEmitter {
+  readonly isTTY: boolean;
+  readonly resume = vi.fn();
+  readonly pause = vi.fn();
+  setRawMode?: (enabled: boolean) => unknown;
+
+  constructor({ isTTY = true, supportsRawMode = true } = {}) {
+    super();
+    this.isTTY = isTTY;
+
+    if (supportsRawMode) {
+      this.setRawMode = vi.fn<(enabled: boolean) => void>();
+    }
+  }
+
+  sendKey(key: string) {
+    this.emit('data', Buffer.from(key));
+  }
+}
 
 describe('generate utils', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as any);
-    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`exit ${code}`);
-    }) as any);
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    delete process.env.LIVEPIC_SKIP_SPRITE;
+    vi.unstubAllEnvs();
+
+    if (stdinIsTTYDescriptor) {
+      Object.defineProperty(process.stdin, 'isTTY', stdinIsTTYDescriptor);
+    } else {
+      Reflect.deleteProperty(process.stdin, 'isTTY');
+    }
+
     delete process.env.LIVEPIC_AUTO_CONFIRM;
-    delete process.env.REPLICATE_API_TOKEN;
   });
 
-  it('parses args and env flags', () => {
-    delete process.env.LIVEPIC_SKIP_SPRITE;
+  it('parses args without sprite flags', () => {
+    vi.stubEnv('LIVEPIC_SKIP_SPRITE', undefined);
+
     expect(parseArgs([])).toEqual({ gridArg: undefined, skipSprite: false });
     expect(parseArgs(['7'])).toEqual({ gridArg: '7', skipSprite: false });
+  });
 
-    process.env.LIVEPIC_SKIP_SPRITE = 'true';
+  it('skips sprite generation when the environment flag is set', () => {
+    vi.stubEnv('LIVEPIC_SKIP_SPRITE', 'true');
+
     expect(parseArgs(['3'])).toEqual({ gridArg: '3', skipSprite: true });
+  });
+
+  it('skips sprite generation with the CLI flag when the environment flag is absent', () => {
+    vi.stubEnv('LIVEPIC_SKIP_SPRITE', undefined);
+
     expect(parseArgs(['5', '--skip-sprite'])).toEqual({ gridArg: '5', skipSprite: true });
   });
 
@@ -53,31 +92,36 @@ describe('generate utils', () => {
 
   it('handles promptForConfirmation in non-interactive mode without env', async () => {
     delete process.env.LIVEPIC_AUTO_CONFIRM;
-    const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
-    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: false });
+    const input = new FakeConfirmationInput({ isTTY: false });
 
-    const result = await promptForConfirmation('Question?');
+    const result = await promptForConfirmation('Question?', input);
     expect(result).toBe(false);
-
-    if (original) {
-      Object.defineProperty(process.stdin, 'isTTY', original);
-    }
   });
 
   it('handles promptForConfirmation in non-interactive mode with env auto-confirm', async () => {
     process.env.LIVEPIC_AUTO_CONFIRM = 'true';
-    const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
-    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: false });
+    const input = new FakeConfirmationInput({ isTTY: false });
 
-    const result = await promptForConfirmation('Question?');
+    const result = await promptForConfirmation('Question?', input);
     expect(result).toBe(true);
+  });
 
-    if (original) {
-      Object.defineProperty(process.stdin, 'isTTY', original);
-    }
+  it('fails safely when interactive confirmation is unavailable', async () => {
+    const input = new FakeConfirmationInput({ supportsRawMode: false });
+
+    const result = await promptForConfirmation('Question?', input);
+
+    expect(result).toBe(false);
+    expect(stdoutSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Interactive confirmation is unavailable'),
+    );
+    expect(input.resume).not.toHaveBeenCalled();
+    expect(input.listenerCount('data')).toBe(0);
   });
 
   it('exits when REPLICATE_API_TOKEN is missing', () => {
+    vi.stubEnv('REPLICATE_API_TOKEN', undefined);
+
     expect(() => ensureApiToken()).toThrow(/exit 1/);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining('REPLICATE_API_TOKEN is missing'),
@@ -90,64 +134,131 @@ describe('generate utils', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Input file not found'));
   });
 
-  it('handles interactive promptForConfirmation navigation', async () => {
-    const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
-    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+  describe('renderOptions', () => {
+    it.each([
+      {
+        options: ['Yes', 'No'],
+        selected: 0,
+        expected: '\rProceed? [Yes]   No ',
+      },
+      {
+        options: ['First', 'Second', 'Third'],
+        selected: 1,
+        expected: '\rProceed?  First   [Second]   Third ',
+      },
+    ])('renders option $selected as selected', ({ options, selected, expected }) => {
+      renderOptions('Proceed?', options, selected);
 
-    const hadRawMode = typeof (process.stdin as any).setRawMode === 'function';
-    if (!hadRawMode) {
-      (process.stdin as any).setRawMode = () => {};
-    }
-    const setRawModeSpy = vi.spyOn(process.stdin as any, 'setRawMode').mockImplementation(() => {});
-    vi.spyOn(process.stdin, 'resume').mockReturnValue(process.stdin as any);
-    vi.spyOn(process.stdin, 'pause').mockReturnValue(process.stdin as any);
-    vi.spyOn(process.stdin, 'off').mockReturnValue(process.stdin as any);
+      expect(stdoutSpy).toHaveBeenCalledWith(expected);
+    });
+  });
 
-    let dataHandler: ((chunk: Buffer) => void) | undefined;
-    vi.spyOn(process.stdin, 'on').mockImplementation((event: string, handler: any) => {
-      if (event === 'data') {
-        dataHandler = handler as (chunk: Buffer) => void;
-      }
-      return process.stdin as any;
+  describe('handleOptionInput', () => {
+    const createHandlers = () => ({
+      onExit: vi.fn(),
+      onPrevious: vi.fn(),
+      onNext: vi.fn(),
+      onSubmit: vi.fn(),
     });
 
-    const resultPromise = promptForConfirmation('Proceed?');
-    expect(setRawModeSpy).toHaveBeenCalledWith(true);
-    expect(dataHandler).toBeDefined();
+    it.each([
+      { key: '\u001b[D', expectedHandler: 'onPrevious' },
+      { key: '\u001b[A', expectedHandler: 'onPrevious' },
+      { key: '\u001b[C', expectedHandler: 'onNext' },
+      { key: '\u001b[B', expectedHandler: 'onNext' },
+    ] as const)('dispatches $key to $expectedHandler', ({ key, expectedHandler }) => {
+      const handlers = createHandlers();
 
-    // Move selection right to "No" then confirm
-    dataHandler?.(Buffer.from('\u001b[C'));
-    dataHandler?.(Buffer.from('\r'));
+      handleOptionInput(Buffer.from(key), handlers);
+
+      expect(handlers[expectedHandler]).toHaveBeenCalledTimes(1);
+      expect(
+        Object.values(handlers).filter((handler) => handler.mock.calls.length > 0),
+      ).toHaveLength(1);
+    });
+
+    it('dispatches the submit key', () => {
+      const handlers = createHandlers();
+
+      handleOptionInput(Buffer.from('\r'), handlers);
+
+      expect(handlers.onSubmit).toHaveBeenCalledTimes(1);
+      expect(handlers.onExit).not.toHaveBeenCalled();
+      expect(handlers.onPrevious).not.toHaveBeenCalled();
+      expect(handlers.onNext).not.toHaveBeenCalled();
+    });
+
+    it('dispatches the exit key', () => {
+      const handlers = createHandlers();
+
+      handleOptionInput(Buffer.from('\u0003'), handlers);
+
+      expect(handlers.onExit).toHaveBeenCalledTimes(1);
+      expect(handlers.onPrevious).not.toHaveBeenCalled();
+      expect(handlers.onNext).not.toHaveBeenCalled();
+      expect(handlers.onSubmit).not.toHaveBeenCalled();
+    });
+  });
+
+  it.each([
+    {
+      name: 'returns true when submitting the default Yes option',
+      keys: ['\r'],
+      expectedResult: true,
+    },
+    {
+      name: 'returns false when selecting No with the right arrow',
+      keys: ['\u001b[C', '\r'],
+      expectedResult: false,
+    },
+  ])('$name', async ({ keys, expectedResult }) => {
+    const input = new FakeConfirmationInput();
+
+    const resultPromise = promptForConfirmation('Proceed?', input);
+    expect(input.setRawMode).toHaveBeenCalledWith(true);
+    expect(input.resume).toHaveBeenCalledTimes(1);
+    expect(input.listenerCount('data')).toBe(1);
+
+    keys.forEach((key) => input.sendKey(key));
 
     const result = await resultPromise;
-    expect(result).toBe(false);
-    expect(stdoutSpy).toHaveBeenCalled();
+    expect(result).toBe(expectedResult);
+    expect(input.setRawMode).toHaveBeenLastCalledWith(false);
+    expect(input.pause).toHaveBeenCalledTimes(1);
+    expect(input.listenerCount('data')).toBe(0);
+  });
 
-    if (!hadRawMode) {
-      delete (process.stdin as any).setRawMode;
-    }
-    if (original) {
-      Object.defineProperty(process.stdin, 'isTTY', original);
-    }
+  it('renders the confirmation initially and after the selection changes', async () => {
+    const input = new FakeConfirmationInput();
+
+    const resultPromise = promptForConfirmation('Proceed?', input);
+    expect(stdoutSpy).toHaveBeenCalledTimes(1);
+    const initialRender = stdoutSpy.mock.lastCall;
+
+    input.sendKey('\u001b[C');
+
+    expect(stdoutSpy).toHaveBeenCalledTimes(2);
+    expect(stdoutSpy.mock.lastCall).not.toEqual(initialRender);
+
+    input.sendKey('\r');
+    await resultPromise;
   });
 
   it('prompts for number and falls back to default on invalid input', async () => {
-    const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
     Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
 
     const question = vi.fn((_message: string, cb: (answer: string) => void) => cb('not-a-number'));
     const close = vi.fn();
-    vi.spyOn(readline, 'createInterface').mockReturnValue({ question, close } as any);
+    vi.spyOn(readline, 'createInterface').mockReturnValue({
+      question,
+      close,
+    } as unknown as readline.Interface);
 
     const value = await promptForNumber('Enter number:', 10);
     expect(value).toBe(10);
     expect(stdoutSpy).toHaveBeenCalledWith(
       expect.stringContaining('Invalid value. Using default: 10'),
     );
-
-    if (original) {
-      Object.defineProperty(process.stdin, 'isTTY', original);
-    }
   });
 
   it('writes sprite metadata and creates directory if missing', async () => {
@@ -167,10 +278,10 @@ describe('generate utils', () => {
   it('returns false when montage is not available', async () => {
     vi.resetModules();
     vi.doMock('node:child_process', () => ({
-      execFile: (...args: any[]) => {
+      execFile: (...args: unknown[]) => {
         const cb = args.at(-1);
         const error = Object.assign(new Error('missing'), { code: 'ENOENT' });
-        cb(error, '', '');
+        if (typeof cb === 'function') cb(error, '', '');
       },
     }));
 
@@ -185,10 +296,10 @@ describe('generate utils', () => {
   it('throws for montage errors other than ENOENT', async () => {
     vi.resetModules();
     vi.doMock('node:child_process', () => ({
-      execFile: (...args: any[]) => {
+      execFile: (...args: unknown[]) => {
         const cb = args.at(-1);
         const error = Object.assign(new Error('boom'), { code: 'EACCES' });
-        cb(error, '', '');
+        if (typeof cb === 'function') cb(error, '', '');
       },
     }));
 
@@ -202,9 +313,9 @@ describe('generate utils', () => {
   it('returns true when montage is available', async () => {
     vi.resetModules();
     vi.doMock('node:child_process', () => ({
-      execFile: (...args: any[]) => {
+      execFile: (...args: unknown[]) => {
         const cb = args.at(-1);
-        cb(null, 'Version: test', '');
+        if (typeof cb === 'function') cb(null, 'Version: test', '');
       },
     }));
 

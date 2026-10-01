@@ -1,158 +1,55 @@
-import { JSDOM } from 'jsdom';
-import { performance as nodePerformance } from 'node:perf_hooks';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { createLivePic, LivePic, defineLivePic, LIVE_PIC_TAG } from './index.js';
 import { DEFAULT_FPS, DEFAULT_GRID_SIZE, DEFAULT_SIZE } from './livepic/constants.js';
-import { Attribute } from './livepic/types.js';
+import { Attribute, LivePicOptions } from './livepic/types.js';
+import { INVALID_IMAGE_SRC, mockImageLoading } from '../test-utils/image-loading.js';
 
-const INVALID_URL = 'invalid-url';
-let LivePic: typeof import('./index.js').LivePic;
-let defineLivePic: typeof import('./index.js').defineLivePic;
-let LIVE_PIC_TAG: typeof import('./index.js').LIVE_PIC_TAG;
-
-describe('ImageLoader class', () => {
-  beforeEach(async () => {
-    setupDom();
-  });
-
-  afterEach(() => {
-    if (typeof document !== 'undefined') {
-      document.body.innerHTML = '';
-    }
-    vi.restoreAllMocks();
-    // @ts-expect-error cleanup globals
-    delete globalThis.window;
-    // @ts-expect-error cleanup globals
-    delete globalThis.document;
-    // @ts-expect-error cleanup globals
-    delete globalThis.customElements;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLImageElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.DOMRect;
-    // @ts-expect-error cleanup globals
-    delete globalThis.performance;
-    // @ts-expect-error cleanup globals
-    delete globalThis.IntersectionObserver;
-  });
-
-  it('inProgress returns correct status', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
-    expect(loader.inProgress()).toBe(true); // not_started
-
-    loader.status = 'loading';
-    expect(loader.inProgress()).toBe(true);
-
-    loader.status = 'loaded';
-    expect(loader.inProgress()).toBe(false);
-
-    loader.status = 'failed';
-    expect(loader.inProgress()).toBe(false);
-
-    loader.status = 'aborted';
-    expect(loader.inProgress()).toBe(false);
-  });
-
-  it('loads image successfully', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
-    expect(loader.status).toBe('not_started');
-
-    await loader.load('/test-image.webp');
-    expect(loader.status).toBe('loaded');
-    expect(loader.image.src).toContain('/test-image.webp');
-  });
-
-  it('handles image load failure when src not provided', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
-
-    await expect(loader.load('')).rejects.toBe('failed');
-    expect(loader.status).toBe('failed');
-    expect(loader.image.src).toBe('');
-  });
-
-  it('handles image load failure from the specified src', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
-
-    await expect(loader.load(INVALID_URL)).rejects.toBe('failed');
-    expect(loader.status).toBe('failed');
-    expect(loader.image.src).toBe('');
-  });
-
-  it('aborts successfully', async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
-    const loadPromise = loader.load('/test-image.webp');
-    expect(loader.status).toBe('loading');
-
-    loader.abort();
-    await expect(loadPromise).rejects.toBe('aborted');
-    expect(loader.status).toBe('aborted');
-    expect(loader.image.src).toBe('');
-  });
-
-  it("doesn't abort when not in progress", async () => {
-    const loader = new (await import('./index.js')).ImageLoader();
-    // Simulate completed state
-    loader.status = 'loaded';
-    loader.abort();
-    expect(loader.status).toBe('loaded');
-  });
+beforeAll(() => {
+  defineLivePic();
+  setViewportSize();
 });
 
 describe('LivePic web component', () => {
-  beforeEach(async () => {
-    setupDom();
-    await loadModule();
+  beforeEach(() => {
+    resetLivePicStatics();
+    mockFrameTiming();
+    mockAnimationFrame();
+    mockImageLoading();
   });
 
   afterEach(() => {
-    if (typeof document !== 'undefined') {
-      document.body.innerHTML = '';
-    }
-    vi.restoreAllMocks();
-    // @ts-expect-error cleanup globals
-    delete globalThis.window;
-    // @ts-expect-error cleanup globals
-    delete globalThis.document;
-    // @ts-expect-error cleanup globals
-    delete globalThis.customElements;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.HTMLImageElement;
-    // @ts-expect-error cleanup globals
-    delete globalThis.DOMRect;
-    // @ts-expect-error cleanup globals
-    delete globalThis.performance;
-    // @ts-expect-error cleanup globals
-    delete globalThis.IntersectionObserver;
+    cleanupLivePicTest();
   });
 
-  it('registers custom element', () => {
-    expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
-    defineLivePic();
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-    defineLivePic();
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-  });
+  describe('manual creation', () => {
+    it('creates the shadow structure when constructed directly', () => {
+      const el = new LivePic();
+      const shadowRoot = el.shadowRoot;
 
-  it('auto-registers through browser entry', async () => {
-    expect(customElements.get(LIVE_PIC_TAG)).toBeUndefined();
-    await import('./browser.js');
-    expect(customElements.get(LIVE_PIC_TAG)).toBe(LivePic);
-  });
+      expect(shadowRoot).not.toBe(null);
+      expect(shadowRoot!.querySelector('style')).not.toBe(null);
+      expect(shadowRoot!.querySelector('.livepic')).not.toBe(null);
+    });
 
-  it('check live-pic structure', () => {
-    const el = createLivePic();
-    const shadowRoot = el.shadowRoot;
+    it('supports document.createElement and manual attribute configuration', async () => {
+      const el = document.createElement(LIVE_PIC_TAG) as LivePic;
+      el.setAttribute('sprite', '/sprite.webp');
+      el.setAttribute('size', '100');
+      el.setAttribute('gridSize', '5');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
-    expect(shadowRoot).not.toBe(null);
-    expect(shadowRoot!.querySelector('style')).not.toBe(null);
-    expect(shadowRoot!.querySelector('.livepic')).not.toBe(null);
+      document.body.appendChild(el);
+
+      await vi.waitFor(() => expect(el.sprite?.status).toBe('loaded'));
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('500px 500px');
+    });
   });
 
   it('finds alias attribute values', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     el.setAttribute('aliasname', 'aliasvalue');
 
     const attribute: Attribute = {
@@ -165,7 +62,7 @@ describe('LivePic web component', () => {
   });
 
   it('warns about deprecated attribute usage', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const attribute: Attribute = {
@@ -180,18 +77,18 @@ describe('LivePic web component', () => {
     }
 
     el.validateAttribute(attribute);
-    expect(console.warn).not.toBeCalled();
+    expect(console.warn).not.toHaveBeenCalled();
 
     el.setAttribute('test', 'yo');
 
     el.validateAttribute(attribute);
-    expect(console.warn).toBeCalledWith(
+    expect(console.warn).toHaveBeenCalledWith(
       `The "test" attribute is deprecated. Please use "newtest" instead.`,
     );
   });
 
   it('warns about deprecated attribute without replacement info', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const attribute: Attribute = {
@@ -203,13 +100,13 @@ describe('LivePic web component', () => {
     el.setAttribute('oldattr', 'somevalue');
 
     el.validateAttribute(attribute);
-    expect(console.warn).toBeCalledWith(
+    expect(console.warn).toHaveBeenCalledWith(
       `The "oldattr" attribute is deprecated. Check documentation for more information.`,
     );
   });
 
   it('returns an error message when required attribute not provided', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     const attribute: Attribute = { name: 'test', type: 'number', required: true };
 
     if (el.hasAttribute('test')) {
@@ -226,7 +123,7 @@ describe('LivePic web component', () => {
   });
 
   it('returns default values for not provided attributes', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     if (el.hasAttribute('test')) {
       el.removeAttribute('test');
     }
@@ -242,7 +139,7 @@ describe('LivePic web component', () => {
   });
 
   it('correctly validates number attributes', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     if (el.hasAttribute('test')) {
       el.removeAttribute('test');
     }
@@ -258,15 +155,143 @@ describe('LivePic web component', () => {
       value: NaN,
       error: `Value of test attribute is not a valid number`,
     });
+
+    el.setAttribute('test', 'Infinity');
+    expect(el.validateAttribute(attribute)).toStrictEqual({
+      value: NaN,
+      error: `Value of test attribute is not a valid number`,
+    });
+  });
+
+  it('validates constrained string attributes', () => {
+    const el = new LivePic();
+    const attribute: Attribute = {
+      name: 'test',
+      type: 'string',
+      defaultValue: 'static',
+      values: ['static', 'frame'],
+    };
+
+    el.setAttribute('test', 'frame');
+    expect(el.validateAttribute(attribute)).toStrictEqual({ value: 'frame' });
+
+    el.setAttribute('test', 'always');
+    expect(el.validateAttribute(attribute)).toStrictEqual({
+      value: 'static',
+      error: `Value of test attribute must be one of: static, frame`,
+    });
+  });
+
+  it.each([
+    {
+      scenario: 'accepts an integer',
+      options: { integer: true },
+      value: '2',
+      expected: { value: 2 },
+    },
+    {
+      scenario: 'rejects a non-integer',
+      options: { integer: true },
+      value: '1.5',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be an integer',
+      },
+    },
+    {
+      scenario: 'accepts the minimum value',
+      options: { min: 3 },
+      value: '3',
+      expected: { value: 3 },
+    },
+    {
+      scenario: 'rejects a value below the minimum',
+      options: { min: 3 },
+      value: '2',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be at least 3',
+      },
+    },
+    {
+      scenario: 'accepts a positive value',
+      options: { positive: true },
+      value: '0.5',
+      expected: { value: 0.5 },
+    },
+    {
+      scenario: 'rejects zero as a positive value',
+      options: { positive: true },
+      value: '0',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be greater than 0',
+      },
+    },
+    {
+      scenario: 'accepts an odd value',
+      options: { odd: true },
+      value: '5',
+      expected: { value: 5 },
+    },
+    {
+      scenario: 'rejects an even value',
+      options: { odd: true },
+      value: '4',
+      expected: {
+        value: NaN,
+        error: 'Value of test attribute must be an odd integer',
+      },
+    },
+  ])('$scenario', ({ options, value, expected }) => {
+    const el = new LivePic();
+
+    el.setAttribute('test', value);
+    expect(el.validateAttribute({ name: 'test', type: 'number', ...options })).toStrictEqual(
+      expected,
+    );
+  });
+
+  it('rejects invalid LivePic numeric attributes', () => {
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      size: -10,
+      gridSize: 2,
+      fps: 0,
+    });
+
+    const [, errors] = el.collectOptions();
+
+    expect(errors).toEqual([
+      'Value of size attribute must be greater than 0',
+      'Value of gridSize attribute must be at least 3',
+      'Value of fps attribute must be greater than 0',
+    ]);
+  });
+
+  it.each([
+    ['0', 'Value of size attribute must be greater than 0'],
+    ['-10', 'Value of size attribute must be greater than 0'],
+    ['-0.5', 'Value of size attribute must be greater than 0'],
+    ['NaN', 'Value of size attribute is not a valid number'],
+    ['Infinity', 'Value of size attribute is not a valid number'],
+    ['-Infinity', 'Value of size attribute is not a valid number'],
+    ['1e309', 'Value of size attribute is not a valid number'],
+  ])('rejects invalid component size %s', (size, error) => {
+    const el = createLivePic({ sprite: '/sprite.webp' });
+    el.setAttribute('size', size);
+
+    const [options, errors] = el.collectOptions();
+
+    expect(options.size).toBe(DEFAULT_SIZE);
+    expect(errors).toEqual([error]);
   });
 
   it("doesn't fallback if all required attributes provided correctly", async () => {
-    const el = createLivePic();
-    el.setAttribute('sprite', '/sprite.webp');
+    const el = createLivePic({ sprite: '/sprite.webp' });
     el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
     document.body.appendChild(el);
-    el.connectedCallback();
 
     // Wait for the async loadSprite() operation to complete
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -275,29 +300,27 @@ describe('LivePic web component', () => {
     expect(shadowRoot.querySelector('.error')).toBe(null);
   });
 
-  it('applies styles from attributes', async () => {
-    const el = createLivePic();
-    el.setAttribute('sprite', '/sprite.webp');
-    el.setAttribute('size', '80');
-    el.setAttribute('gridSize', '3');
+  it.each([
+    { size: 80, dimension: '80px', backgroundSize: '240px 240px' },
+    { size: 120.5, dimension: '120.5px', backgroundSize: '361.5px 361.5px' },
+    { size: 0.5, dimension: '0.5px', backgroundSize: '1.5px 1.5px' },
+  ])('applies styles for size $size', async ({ size, dimension, backgroundSize }) => {
+    const el = createLivePic({ sprite: '/sprite.webp', size, gridSize: 3 });
+    expect(el.collectOptions()).toEqual([expect.objectContaining({ size }), []]);
     el.getBoundingClientRect = () => new DOMRect(0, 0, 80, 80);
 
     document.body.appendChild(el);
-    el.connectedCallback();
 
-    // Wait for sprite load to apply sprite sizing/background
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() => expect(el.sprite?.status).toBe('loaded'));
 
-    expect(el.$el.style.width).toBe('80px');
-    expect(el.$el.style.height).toBe('80px');
-    expect(el.$el.style.backgroundSize).toBe('240px 240px');
+    expect(el.$el.style.width).toBe(dimension);
+    expect(el.$el.style.height).toBe(dimension);
+    expect(el.$el.style.backgroundSize).toBe(backgroundSize);
     expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-
-    el.disconnectedCallback();
   });
 
   it('shows error overlay without destroying structure on fallback', () => {
-    const el = createLivePic();
+    const el = new LivePic();
     el.fallback('Test error');
 
     const shadowRoot = el.shadowRoot!;
@@ -309,71 +332,266 @@ describe('LivePic web component', () => {
     expect(shadowRoot.querySelector('style')).not.toBe(null);
   });
 
+  it('shows fallback and does not start tracking when sprite loading fails', async () => {
+    const el = createLivePic({ sprite: INVALID_IMAGE_SRC });
+    const startTrackingSpy = vi.spyOn(el, 'startTracking');
+
+    document.body.appendChild(el);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const error = el.shadowRoot!.querySelector('.error');
+    expect(error).not.toBe(null);
+    expect(error!.textContent).toBe('Sprite loading failed');
+    expect(startTrackingSpy).not.toHaveBeenCalled();
+    expect(el.sprite?.status).toBe('failed');
+  });
+
+  it('rejects a direct sprite load when the image fails', async () => {
+    const el = new LivePic();
+    el.options = livePicOptions({ sprite: INVALID_IMAGE_SRC });
+
+    await expect(el.loadSprite()).rejects.toThrow(
+      `Sprite loading failed for src: ${INVALID_IMAGE_SRC}`,
+    );
+
+    expect(el.shadowRoot!.querySelector('.error')?.textContent).toBe('Sprite loading failed');
+    expect(el.sprite?.status).toBe('failed');
+  });
+
   describe('placeholder loading', () => {
-    it('loads placeholder and sets background image before sprite loads', async () => {
-      const el = createLivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+    it('aborts a pending placeholder before applying the sprite', async () => {
+      const el = new LivePic();
+      const abort = vi.fn();
+      el.options = livePicOptions({ sprite: 'sprite.webp' });
+      el.placeholder = {
+        inProgress: () => true,
+        abort,
+      } as unknown as LivePic['placeholder'];
+
+      await el.loadSprite();
+
+      expect(abort).toHaveBeenCalledOnce();
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+    });
+
+    it('keeps the loaded placeholder visible until the sprite finishes loading', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
-      // Initialize options but call loadPlaceholder directly to test it in isolation
-      [el.options] = el.collectOptions();
-      el.initStyles();
+      document.body.appendChild(el);
+      await imageLoading.load('/placeholder.webp');
+
+      expect(el.placeholder?.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loading');
+      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
+      expect(el.$el.style.backgroundSize).toBe('100px 100px');
+
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.sprite?.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('500px 500px');
+    });
+
+    it('ignores a placeholder that loads after it has been replaced', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      el.options = livePicOptions({ placeholder: '/old-placeholder.webp' });
+      el.loadPlaceholder();
+      const oldPlaceholder = el.placeholder;
+
+      el.options = livePicOptions({ placeholder: '/new-placeholder.webp', size: 200 });
       el.loadPlaceholder();
 
-      // Wait for placeholder to load
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(el.placeholder).not.toBe(oldPlaceholder);
 
-      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
-      expect(el.$el.style.backgroundSize).toContain('100px 100px');
+      await imageLoading.load('/old-placeholder.webp');
 
-      // Now load sprite to ensure it replaces placeholder
-      await el.loadSprite();
-      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-      expect(el.$el.style.backgroundSize).toBe('500px 500px');
+      expect(el.$el.style.backgroundImage).toBe('');
+
+      await imageLoading.load('/new-placeholder.webp');
+
+      expect(el.$el.style.backgroundImage).toContain('new-placeholder.webp');
+      expect(el.$el.style.backgroundSize).toBe('200px 200px');
     });
 
-    it('warns when placeholder loading fails', async () => {
+    it('ignores a sprite that loads after it has been replaced', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = new LivePic();
+      el.options = livePicOptions({ sprite: '/old-sprite.webp' });
+      const oldLoading = el.loadSprite();
+      const oldSettlement = imageLoading.load('/old-sprite.webp');
+
+      el.options = livePicOptions({ sprite: '/new-sprite.webp', size: 200 });
+      const newLoading = el.loadSprite();
+      await oldSettlement;
+      await oldLoading;
+
+      expect(el.sprite?.status).toBe('loading');
+      expect(el.$el.style.backgroundImage).toBe('');
+
+      await imageLoading.load('/new-sprite.webp');
+      await newLoading;
+
+      expect(el.sprite?.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('new-sprite.webp');
+      expect(el.$el.style.backgroundSize).toBe('1000px 1000px');
+    });
+
+    it('does not warn when the sprite load aborts a pending placeholder', async () => {
+      const imageLoading = mockControlledImageLoading();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      const el = createLivePic();
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', INVALID_URL);
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
-      el.connectedCallback();
+      await imageLoading.load('/sprite.webp');
+      await imageLoading.load('/placeholder.webp');
 
-      // Wait for placeholder loading to fail
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Placeholder loading failed'));
+      expect(el.placeholder?.status).toBe('aborted');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
-    it('aborts placeholder loading when sprite loads', async () => {
-      const el = createLivePic();
-      el.setAttribute('size', '100');
-      el.setAttribute('gridSize', '5');
-      el.setAttribute('sprite', '/sprite.webp');
-      el.setAttribute('placeholder', '/placeholder.webp');
+    it('continues to show the sprite when placeholder loading fails first', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       document.body.appendChild(el);
-      el.connectedCallback();
+      await imageLoading.fail('/placeholder.webp');
+      await imageLoading.load('/sprite.webp');
 
-      // Wait for sprite to load (aborts placeholder if still in progress)
-      await new Promise((resolve) => setTimeout(resolve, 20));
-
-      // Sprite should be loaded and background image should be sprite
+      expect(warnSpy).toHaveBeenCalledWith('Placeholder loading failed for src: /placeholder.webp');
+      expect(el.placeholder?.status).toBe('failed');
+      expect(el.sprite?.status).toBe('loaded');
       expect(el.$el.style.backgroundImage).toContain('sprite.webp');
-      expect(el.$el.style.backgroundSize).toBe('500px 500px');
+    });
+
+    it('keeps the loaded placeholder behind the error overlay when sprite loading fails', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      await imageLoading.load('/placeholder.webp');
+      await imageLoading.fail('/sprite.webp');
+
+      const error = el.shadowRoot!.querySelector('.error');
+      expect(error?.textContent).toBe('Sprite loading failed');
+      expect(el.placeholder?.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('failed');
+      expect(el.$el.style.backgroundImage).toContain('placeholder.webp');
+    });
+
+    it('aborts pending image loads without warning or fallback when disconnected', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
+      const startTrackingSpy = vi.spyOn(el, 'startTracking');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      document.body.removeChild(el);
+      await imageLoading.load('/placeholder.webp');
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.placeholder?.status).toBe('aborted');
+      expect(el.sprite?.status).toBe('aborted');
+      expect(el.shadowRoot!.querySelector('.error')).toBe(null);
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(startTrackingSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not treat abort error events as image load failures', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const el = createLivePic({
+        size: 100,
+        gridSize: 5,
+        sprite: '/sprite.webp',
+        placeholder: '/placeholder.webp',
+      });
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      document.body.removeChild(el);
+      await imageLoading.failAborts();
+
+      expect(el.placeholder?.status).toBe('aborted');
+      expect(el.sprite?.status).toBe('aborted');
+      expect(el.shadowRoot!.querySelector('.error')).toBe(null);
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      document.body.appendChild(el);
+      await imageLoading.load('/placeholder.webp');
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.placeholder?.status).toBe('loaded');
+      expect(el.sprite?.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.shadowRoot!.querySelector('.error')).toBe(null);
+    });
+
+    it('waits for a fresh sprite load when reconnected during the initial load', async () => {
+      const imageLoading = mockControlledImageLoading();
+      const el = createLivePic({ sprite: '/sprite.webp', size: 100, gridSize: 5 });
+      const observeVisibilitySpy = vi.spyOn(el, 'observeVisibility');
+      const startTrackingSpy = vi.spyOn(el, 'startTracking');
+      el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+      document.body.appendChild(el);
+      const initialSprite = el.sprite;
+      document.body.removeChild(el);
+      document.body.appendChild(el);
+      await imageLoading.settleAborts();
+
+      expect(el.sprite).not.toBe(initialSprite);
+      expect(el.sprite?.status).toBe('loading');
+      expect(el.$el.style.backgroundImage).toBe('');
+      expect(el.trackingActive).toBe(false);
+      expect(observeVisibilitySpy).not.toHaveBeenCalled();
+      expect(startTrackingSpy).not.toHaveBeenCalled();
+
+      await imageLoading.load('/sprite.webp');
+
+      expect(el.sprite?.status).toBe('loaded');
+      expect(el.$el.style.backgroundImage).toContain('sprite.webp');
+      expect(el.trackingActive).toBe(true);
+      expect(observeVisibilitySpy).toHaveBeenCalledOnce();
+      expect(startTrackingSpy).toHaveBeenCalledOnce();
     });
 
     it('does not load placeholder when not provided', () => {
-      const el = createLivePic();
-      el.setAttribute('sprite', '/sprite.webp');
+      const el = createLivePic({ sprite: '/sprite.webp' });
       el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
       // Initialize options before calling loadPlaceholder
@@ -407,16 +625,135 @@ describe('LivePic web component', () => {
       expect(cancelAnimationFrame).toHaveBeenCalled();
     });
 
-    it('does not start multiple loops', () => {
+    it('schedules only one animation frame when started repeatedly', () => {
       LivePic.startLoop();
-      const firstRafId = LivePic.rafId;
-
       LivePic.startLoop();
 
-      expect(LivePic.rafId).toBe(firstRafId);
+      expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
 
       // Clean up
       LivePic.stopLoop();
+    });
+
+    it('does not keep the animation loop alive when there is no pending work', () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+
+      LivePic.startLoop();
+      expect(frames).toHaveLength(1);
+
+      frames[0](0);
+
+      expect(LivePic.rafId).toBeNull();
+      expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    });
+
+    it('reschedules the animation loop when an update is throttled by fps', () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+
+      const el = new LivePic();
+      el.options = livePicOptions();
+      el.rect = new DOMRect(0, 0, 100, 100);
+      el.maxDistanceX = 800;
+      el.maxDistanceY = 600;
+      el.isVisible = true;
+      el.trackingActive = true;
+      el.lastFrameTime = Number.MAX_SAFE_INTEGER;
+      LivePic.pointerX = 800;
+      LivePic.pointerY = 600;
+      LivePic.pointerVersion = 1;
+      LivePic.activeInstances.add(el);
+
+      LivePic.startLoop();
+      frames[0](0);
+
+      expect(frames).toHaveLength(2);
+      expect(LivePic.rafId).toBe(2);
+
+      LivePic.activeInstances.clear();
+      LivePic.stopLoop();
+    });
+
+    it('resumes the animation loop when the document becomes visible again', () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+      const visibilityState = vi.spyOn(document, 'visibilityState', 'get');
+      visibilityState.mockReturnValue('hidden');
+
+      const el = new LivePic();
+      el.options = livePicOptions();
+      el.rect = new DOMRect(0, 0, 100, 100);
+      el.maxDistanceX = 800;
+      el.maxDistanceY = 600;
+      el.isVisible = true;
+      LivePic.pointerX = 800;
+      LivePic.pointerY = 600;
+      LivePic.pointerVersion = 1;
+      el.startTracking();
+
+      try {
+        frames[0](0);
+        expect(LivePic.rafId).toBeNull();
+        expect(el.$el.style.backgroundPosition).toBe('');
+
+        visibilityState.mockReturnValue('visible');
+        document.dispatchEvent(new Event('visibilitychange'));
+        expect(frames).toHaveLength(2);
+
+        frames[1](0);
+        expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+      } finally {
+        el.stopTracking();
+      }
+    });
+
+    it('draws an offscreen frame-tracked element once after refreshGeometry is called', async () => {
+      const frames: FrameRequestCallback[] = [];
+      vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+      const observerDescriptor = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+      Reflect.deleteProperty(window, 'IntersectionObserver');
+
+      const imageLoading = mockControlledImageLoading();
+      const el = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'frame' });
+      let left = 0;
+      el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+      try {
+        document.body.appendChild(el);
+        await imageLoading.load('/sprite.webp');
+        await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+        document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+
+        frames.shift()!(0);
+        expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+        left = 900;
+        frames.shift()!(0);
+        expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+        left = 700;
+        el.refreshGeometry();
+        expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+        expect(frames).toHaveLength(0);
+      } finally {
+        el.remove();
+        if (observerDescriptor) {
+          Object.defineProperty(window, 'IntersectionObserver', observerDescriptor);
+        }
+      }
     });
 
     it('handles stopLoop when not running', () => {
@@ -430,14 +767,10 @@ describe('LivePic web component', () => {
   });
 
   it('updates background position based on pointer', async () => {
-    const el = createLivePic();
-    el.setAttribute('sprite', '/sprite.webp');
-    el.setAttribute('size', '100');
-    el.setAttribute('gridSize', '5');
+    const el = createLivePic({ sprite: '/sprite.webp', size: 100, gridSize: 5 });
     el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
 
     document.body.appendChild(el);
-    el.connectedCallback();
 
     // Wait for the async loadSprite() operation to complete
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -452,14 +785,52 @@ describe('LivePic web component', () => {
     el.updateFrame();
 
     expect(el.$el.style.backgroundPosition).toBe('100% 100%');
-    el.disconnectedCallback();
+  });
+
+  it('ignores touch movement without an active touch', () => {
+    LivePic.pointerX = 25;
+    LivePic.pointerY = 50;
+    LivePic.pointerVersion = 1;
+
+    expect(() => LivePic.handlePointerMove(new TouchEvent('touchmove'))).not.toThrow();
+    expect(LivePic.pointerX).toBe(25);
+    expect(LivePic.pointerY).toBe(50);
+    expect(LivePic.pointerVersion).toBe(1);
+  });
+
+  it('refreshGeometry updates a static portrait after it moves without a viewport event', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'static' });
+    let left = 0;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+      left = 700;
+      el.refreshGeometry();
+      expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+      expect(frames).toHaveLength(0);
+    } finally {
+      el.remove();
+    }
   });
 
   describe('calculatePosition', () => {
-    const baseOptions = { size: 100, gridSize: 5, sprite: '/sprite.webp', fps: 60 };
     const setupForCalc = () => {
-      const el = createLivePic();
-      el.options = { ...baseOptions };
+      const el = new LivePic();
+      el.options = livePicOptions({ sprite: '/sprite.webp' });
       el.rect = new DOMRect(0, 0, 100, 100);
       el.maxDistanceX = 400;
       el.maxDistanceY = 300;
@@ -491,16 +862,24 @@ describe('LivePic web component', () => {
 
       expect(el.calculatePosition()).toBe('75% 75%');
     });
+
+    it('keeps the current background position when pointer is missing', () => {
+      const el = setupForCalc();
+      el.$el.style.backgroundPosition = '25% 75%';
+      LivePic.pointerX = null;
+      LivePic.pointerY = 50;
+
+      expect(el.calculatePosition()).toBe('25% 75%');
+    });
   });
 
   describe('options and geometry', () => {
     it('collects defaults and required attributes', () => {
-      const el = createLivePic();
-      el.setAttribute('sprite', '/img.png');
+      const el = createLivePic({ sprite: '/img.png' });
 
       const opts = el.collectOptions()[0];
 
-      expect(opts).toEqual({
+      expect(opts).toMatchObject({
         size: DEFAULT_SIZE,
         placeholder: '',
         gridSize: DEFAULT_GRID_SIZE,
@@ -509,13 +888,32 @@ describe('LivePic web component', () => {
       });
     });
 
+    it('uses static layout tracking by default', () => {
+      const el = createLivePic({ sprite: '/img.png' });
+
+      const opts = el.collectOptions()[0];
+
+      expect(opts.layoutTracking).toBe('static');
+    });
+
+    it('rejects an invalid offscreen behavior', () => {
+      const el = createLivePic({ sprite: '/img.png' });
+      el.setAttribute('offscreenBehavior', 'sometimes');
+
+      document.body.appendChild(el);
+
+      expect(el.shadowRoot?.querySelector('.error')?.textContent).toContain(
+        'Value of offscreenBehavior attribute must be one of: pause, continue',
+      );
+    });
+
     it('get an error message when required sprite attribute is missing', () => {
-      const el = createLivePic();
+      const el = new LivePic();
       expect(el.collectOptions()[1].length).toBeGreaterThan(0);
     });
 
     it('computes rect info and visibility', () => {
-      const el = createLivePic();
+      const el = new LivePic();
       el.$el.getBoundingClientRect = () => new DOMRect(100, 50, 100, 100);
 
       el.updateRect();
@@ -527,8 +925,8 @@ describe('LivePic web component', () => {
   });
 
   it('skips frame update when not visible', () => {
-    const el = createLivePic();
-    el.options = { size: 100, gridSize: 5, sprite: '/img.png', fps: 60 };
+    const el = new LivePic();
+    el.options = livePicOptions();
     el.rect = new DOMRect(0, 0, 100, 100);
     el.maxDistanceX = 800;
     el.maxDistanceY = 600;
@@ -543,88 +941,360 @@ describe('LivePic web component', () => {
     expect(calcSpy).not.toHaveBeenCalled();
   });
 
+  it('refreshes geometry every frame when layoutTracking is frame', () => {
+    const el = new LivePic();
+    el.options = livePicOptions({ layoutTracking: 'frame' });
+    el.rect = new DOMRect(0, 0, 100, 100);
+    el.maxDistanceX = 800;
+    el.maxDistanceY = 600;
+    el.trackingActive = true;
+    el.isVisible = true;
+    el.$el.getBoundingClientRect = vi.fn(() => new DOMRect(700, 500, 100, 100));
+    LivePic.pointerX = 800;
+    LivePic.pointerY = 600;
+    LivePic.pointerVersion = 1;
+
+    const shouldContinue = el.updateFrame(1000);
+
+    expect(el.$el.getBoundingClientRect).toHaveBeenCalled();
+    expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+    expect(shouldContinue).toBe(true);
+  });
+
+  it('continues drawing while an offscreen portrait moves without another pointer event', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const observerDescriptor = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      layoutTracking: 'frame',
+      offscreenBehavior: 'continue',
+    });
+    let left = 900;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('25% 50%');
+
+      left = 100;
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+    } finally {
+      el.remove();
+      if (observerDescriptor) {
+        Object.defineProperty(window, 'IntersectionObserver', observerDescriptor);
+      }
+    }
+  });
+
+  it('does not poll an offscreen portrait before input or on frames used by another portrait', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const observerDescriptor = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+
+    const imageLoading = mockControlledImageLoading();
+    const offscreen = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'frame' });
+    const visible = createLivePic({ sprite: '/sprite.webp', layoutTracking: 'frame' });
+    let left = 900;
+    offscreen.$el.getBoundingClientRect = vi.fn(() => new DOMRect(left, 500, 100, 100));
+    visible.$el.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+
+    try {
+      document.body.append(offscreen, visible);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+      frames.shift()!(0);
+      expect(frames).toHaveLength(0);
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      const rectReads = vi.mocked(offscreen.$el.getBoundingClientRect).mock.calls.length;
+
+      frames.shift()!(0);
+      frames.shift()!(0);
+      expect(offscreen.$el.getBoundingClientRect).toHaveBeenCalledTimes(rectReads);
+
+      left = 700;
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(offscreen.$el.getBoundingClientRect).toHaveBeenCalledTimes(rectReads + 1);
+      expect(offscreen.$el.style.backgroundPosition).toBe('50% 50%');
+    } finally {
+      offscreen.remove();
+      visible.remove();
+      if (observerDescriptor) {
+        Object.defineProperty(window, 'IntersectionObserver', observerDescriptor);
+      }
+    }
+  });
+
   it('reacts to IntersectionObserver visibility changes', () => {
     const observe = vi.fn();
     const disconnect = vi.fn();
     let ioCallback: IntersectionObserverCallback | undefined;
 
-    // @ts-expect-error override global IntersectionObserver
-    globalThis.IntersectionObserver = class {
-      constructor(cb: IntersectionObserverCallback) {
-        ioCallback = cb;
-      }
-      observe = observe;
-      disconnect = disconnect;
-      readonly root = null;
-      readonly rootMargin = '';
-      readonly thresholds: ReadonlyArray<number> = [];
-    };
-    // ensure window also sees the mock
-    globalThis.window.IntersectionObserver = globalThis.IntersectionObserver;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(cb: IntersectionObserverCallback) {
+          ioCallback = cb;
+        }
+        observe = observe;
+        disconnect = disconnect;
+        readonly root = null;
+        readonly rootMargin = '';
+        readonly thresholds: ReadonlyArray<number> = [];
+      },
+    );
 
-    const el = createLivePic();
+    const el = new LivePic();
+    el.options = livePicOptions();
     const startSpy = vi.spyOn(el, 'startTracking');
     const stopSpy = vi.spyOn(el, 'stopTracking');
     const scheduleRectUpdateSpy = vi.spyOn(el, 'scheduleRectUpdate');
 
-    el.observeVisibility();
-    expect(observe).toHaveBeenCalledWith(el);
-    const mockObserver = el['visibilityObserver']!;
+    try {
+      el.observeVisibility();
+      expect(observe).toHaveBeenCalledWith(el);
+      const mockObserver = el['visibilityObserver']!;
 
-    ioCallback?.([{ isIntersecting: false } as IntersectionObserverEntry], mockObserver);
-    expect(el.isVisible).toBe(false);
-    expect(stopSpy).toHaveBeenCalled();
+      ioCallback?.([{ isIntersecting: false } as IntersectionObserverEntry], mockObserver);
+      expect(el.isVisible).toBe(false);
+      expect(stopSpy).toHaveBeenCalled();
 
-    ioCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], mockObserver);
-    expect(el.isVisible).toBe(true);
-    expect(scheduleRectUpdateSpy).toHaveBeenCalled();
-    expect(startSpy).toHaveBeenCalled();
+      ioCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], mockObserver);
+      expect(el.isVisible).toBe(true);
+      expect(scheduleRectUpdateSpy).toHaveBeenCalled();
+      expect(startSpy).toHaveBeenCalled();
+    } finally {
+      el.stopTracking();
+      el.visibilityObserver?.disconnect();
+    }
+  });
+
+  it('does not draw or restart tracking when the observer has paused a clipped element', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({ sprite: '/sprite.webp' });
+    let left = 0;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+      left = 700;
+      el.refreshGeometry();
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700, clientY: 600 }));
+
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+      expect(frames).toHaveLength(0);
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('continues reacting to the pointer when the observer reports a clipped element', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      offscreenBehavior: 'continue',
+    });
+    el.$el.getBoundingClientRect = () => new DOMRect(100, 100, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, clientY: 150 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('updates a clipped frame-tracked portrait after it moves without another pointer event', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({
+      sprite: '/sprite.webp',
+      layoutTracking: 'frame',
+      offscreenBehavior: 'continue',
+    });
+    let left = 900;
+    el.$el.getBoundingClientRect = () => new DOMRect(left, 500, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('25% 50%');
+
+      left = 100;
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 50%');
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('pauses a continuing portrait while the document is hidden and resumes it when visible', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    const frames: FrameRequestCallback[] = [];
+    vi.mocked(requestAnimationFrame).mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const visibilityState = vi.spyOn(document, 'visibilityState', 'get');
+    visibilityState.mockReturnValue('visible');
+
+    const imageLoading = mockControlledImageLoading();
+    const el = createLivePic({ sprite: '/sprite.webp', offscreenBehavior: 'continue' });
+    el.$el.getBoundingClientRect = () => new DOMRect(100, 100, 100, 100);
+
+    try {
+      document.body.appendChild(el);
+      await imageLoading.load('/sprite.webp');
+      await vi.waitFor(() => expect(FakeIntersectionObserver.observers.get(el)).toBeDefined());
+
+      FakeIntersectionObserver.observers.get(el)!.emit(false);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 800, clientY: 600 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+
+      visibilityState.mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, clientY: 150 }));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('100% 100%');
+
+      visibilityState.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      frames.shift()!(0);
+      expect(el.$el.style.backgroundPosition).toBe('50% 50%');
+    } finally {
+      el.remove();
+    }
   });
 });
 
-function createLivePic() {
-  defineLivePic();
-  return new LivePic();
+class FakeIntersectionObserver {
+  static observers = new WeakMap<Element, FakeIntersectionObserver>();
+
+  constructor(private callback: IntersectionObserverCallback) {}
+
+  observe(element: Element) {
+    FakeIntersectionObserver.observers.set(element, this);
+  }
+
+  disconnect() {}
+
+  emit(isIntersecting: boolean) {
+    this.callback(
+      [{ isIntersecting } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
 }
 
-function setupDom() {
-  // Ensure performance exists before jsdom touches it
-  // @ts-expect-error assign globals for test env
-  globalThis.performance ??= nodePerformance;
+function livePicOptions(overrides: Partial<LivePicOptions> = {}): LivePicOptions {
+  return {
+    size: 100,
+    gridSize: 5,
+    sprite: '/img.png',
+    fps: 60,
+    layoutTracking: 'static',
+    offscreenBehavior: 'pause',
+    ...overrides,
+  };
+}
 
-  const dom = new JSDOM('<!doctype html><html><body></body></html>', {
-    url: 'http://localhost',
-    pretendToBeVisual: true,
-  });
+function setViewportSize() {
+  Object.assign(window, { innerWidth: 800, innerHeight: 600 });
+  globalThis.innerWidth = 800;
+  globalThis.innerHeight = 600;
+}
 
-  // @ts-expect-error assign globals for test env
-  globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
-  globalThis.customElements = dom.window.customElements;
-  globalThis.HTMLElement = dom.window.HTMLElement;
-  globalThis.HTMLImageElement = dom.window.HTMLImageElement;
-  globalThis.DOMRect = dom.window.DOMRect;
-  globalThis.performance = dom.window.performance ?? nodePerformance;
+function mockFrameTiming() {
   let tick = 0;
   vi.spyOn(globalThis.performance, 'now').mockImplementation(() => {
     tick += 1000;
     return tick;
   });
-  // Minimal viewport values for calculations
-  Object.assign(dom.window, { innerWidth: 800, innerHeight: 600 });
-  globalThis.innerWidth = 800;
-  globalThis.innerHeight = 600;
+}
 
+function mockAnimationFrame() {
   globalThis.requestAnimationFrame = vi.fn().mockReturnValue(1);
   globalThis.cancelAnimationFrame = vi.fn();
-  Object.assign(dom.window, {
+  Object.assign(window, {
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame,
   });
+}
 
-  class MockImage {
+function mockControlledImageLoading() {
+  const pending = new Map<string, ControlledImage[]>();
+
+  class ControlledImage {
+    private listeners: Record<'load' | 'error', Array<() => void>> = { load: [], error: [] };
     private _src = '';
-    private listeners: Record<string, Array<() => void>> = { load: [], error: [] };
 
     addEventListener(event: 'load' | 'error', cb: () => void) {
       this.listeners[event]?.push(cb);
@@ -637,31 +1307,50 @@ function setupDom() {
     set src(value: string) {
       this._src = value;
 
-      if (value === INVALID_URL) {
-        // simulate async load failure
-        Promise.reject().catch(() => this.listeners.error?.forEach((fn) => fn()));
-        return;
-      }
-
-      // simulate async load success
-      Promise.resolve().then(() => this.listeners.load?.forEach((fn) => fn()));
+      const images = pending.get(value) ?? [];
+      images.push(this);
+      pending.set(value, images);
     }
 
     get src() {
       return this._src;
     }
+
+    emit(event: 'load' | 'error') {
+      this.listeners[event]?.forEach((fn) => fn());
+    }
   }
 
-  // @ts-expect-error override global Image for test env
-  globalThis.Image = dom.window.Image = MockImage;
+  const settle = async (src: string, event: 'load' | 'error') => {
+    pending.get(src)?.forEach((image) => image.emit(event));
+    pending.delete(src);
+    await Promise.resolve();
+    await Promise.resolve();
+  };
 
-  return dom;
+  // @ts-expect-error override global Image for controlled async tests
+  globalThis.Image = window.Image = ControlledImage;
+
+  return {
+    load: (src: string) => settle(src, 'load'),
+    fail: (src: string) => settle(src, 'error'),
+    settleAborts: () => settle('', 'load'),
+    failAborts: () => settle('', 'error'),
+  };
 }
 
-async function loadModule() {
-  vi.resetModules();
-  const module = await import('./index.js');
-  LivePic = module.LivePic;
-  defineLivePic = module.defineLivePic;
-  LIVE_PIC_TAG = module.LIVE_PIC_TAG;
+function cleanupLivePicTest() {
+  document.body.replaceChildren();
+  LivePic.stopLoop();
+  resetLivePicStatics();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+}
+
+function resetLivePicStatics() {
+  LivePic.activeInstances.clear();
+  LivePic.rafId = null;
+  LivePic.pointerX = null;
+  LivePic.pointerY = null;
+  LivePic.pointerVersion = 0;
 }

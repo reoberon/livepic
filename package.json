@@ -1,9 +1,28 @@
 {
   "name": "livepic",
   "version": "0.0.0-development",
+  "packageManager": "pnpm@10.30.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./dist/index.js": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./dist/browser.js": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    }
+  },
   "author": "reoberon",
   "license": "MIT",
   "description": "Gaze-tracking portrait sprite web component with a CLI to generate your own sprite sheets",
@@ -20,12 +39,15 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && tsc",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "postbuild": "chmod +x dist/cli.js",
-    "dev": "tsc -w",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "coverage": "vitest run --coverage",
+    "dev": "tsc -p tsconfig.build.json -w",
+    "preview:demo": "pnpm run build && node scripts/preview-demo.mjs",
+    "test": "vitest --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:smoke": "pnpm run build && vitest run --project smoke",
+    "test:run": "pnpm run test:unit && pnpm run test:smoke",
+    "coverage": "vitest run --project unit --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -40,28 +62,27 @@
   ],
   "unpkg": "dist/browser.js",
   "devDependencies": {
-    "@commitlint/cli": "^20.1.0",
-    "@commitlint/config-conventional": "^20.0.0",
-    "@eslint/js": "^9.39.1",
-    "@types/jsdom": "^27.0.0",
-    "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "^4.0.13",
-    "@vitest/eslint-plugin": "^1.4.4",
-    "eslint": "^9.39.1",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/types": "^21.2.3",
+    "@eslint/js": "^10.0.1",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^24.19.0",
+    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/eslint-plugin": "^1.6.27",
+    "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
-    "jsdom": "^27.2.0",
-    "prettier": "^3.6.2",
+    "jsdom": "^30.1.1",
+    "prettier": "^3.9.9",
+    "semantic-release": "^25.0.9",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.47.0",
-    "vitest": "^4.0.13"
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
   },
   "dependencies": {
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "p-all": "^5.0.1",
     "replicate": "^1.4.0"
-  },
-  "overrides": {
-    "glob": "11.1.0"
   }
 }
